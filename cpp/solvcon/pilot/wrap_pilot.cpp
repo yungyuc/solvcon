@@ -180,6 +180,8 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRDomainWidget
                 py::arg("colors"),
                 py::arg("indices"))
             .def("showBoundary", &wrapped_type::showBoundary, py::arg("ibc"), py::arg("show"))
+            .def("showFeatureEdges", &wrapped_type::showFeatureEdges, py::arg("show"))
+            .def("showNormals", &wrapped_type::showNormals, py::arg("show"))
             .def("showAxis", &wrapped_type::showAxis, py::arg("show"))
             .def("fitCameraToScene", &wrapped_type::fitCameraToScene)
             .def_property(
@@ -556,7 +558,8 @@ void wrap_pilot(pybind11::module & mod)
         "fields. Drive it with updateMesh / showMesh / showMeshStyle / "
         "setRepresentation / setMeshOpacity, "
         "updateColorField / setFieldOpacity, "
-        "showBoundary, and showAxis; navigate with cameraMode, the "
+        "showBoundary, showFeatureEdges, showNormals, and showAxis; navigate "
+        "with cameraMode, the "
         "cameraPosition / cameraTarget / cameraUp pose, rotateCamera / "
         "panCamera / zoomCamera / pinchCamera, and fitCameraToScene; capture "
         "frames with "
