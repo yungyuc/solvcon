@@ -62,7 +62,15 @@ class MeshInfoTree(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._tree)
         self.setLayout(layout)
+        # Called when a check box flips; the owner wires these to the viewer.
+        # ``boundary_toggled(ibc, checked)`` follows a boundary set,
+        # ``edges_toggled(checked)`` the feature-edge overlay, and
+        # ``normals_toggled(checked)`` the face normals. The mesh styles are
+        # driven separately through ``style_status``. ``_building`` suppresses
+        # the signal while ``set_mesh`` populates the check boxes.
         self.boundary_toggled = None
+        self.edges_toggled = None
+        self.normals_toggled = None
         self._building = False
         self._tree.itemChanged.connect(self._on_item_changed)
         self.set_mesh(mh)
@@ -133,9 +141,10 @@ class MeshInfoTree(QWidget):
                 QTreeWidgetItem(self._tree, ["No mesh loaded"])
                 return
             root = QTreeWidgetItem(self._tree, [f"StaticMesh ({mh.ndim}D)"])
-            # Keep the display toggles (styles, then boundaries) together at
-            # the top, above the read-only information sections.
+            # Keep the display toggles (styles and overlays, then boundaries)
+            # together at the top, above the read-only information sections.
             self._add_style_toggles(root)
+            self._add_overlay_toggles(root)
             self._add_boundary_group(root, mh)
             for section, rows in self.make_mesh_info(mh):
                 group = QTreeWidgetItem(root, [section])
@@ -178,6 +187,18 @@ class MeshInfoTree(QWidget):
         finally:
             self._building = False
 
+    def _add_overlay_toggles(self, root):
+        """Add the feature-edge and face-normal overlay check boxes.
+
+        Both default off; each drives its own viewer overlay.
+        """
+        for label, kind in (("feature edges", 'edges'),
+                            ("normals", 'normals')):
+            item = QTreeWidgetItem(root, [label])
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setData(0, self._ROLE_KIND, kind)
+            item.setCheckState(0, Qt.Unchecked)
+
     def _add_boundary_group(self, root, mh):
         """Add the boundary sets as a group of check boxes (default off)."""
         binfo = self.make_boundary_info(mh)
@@ -203,6 +224,10 @@ class MeshInfoTree(QWidget):
         elif kind == 'style' and self.style_status is not None:
             self.style_status.set_shown(
                 item.data(0, self._ROLE_STYLE), checked)
+        elif kind == 'edges' and self.edges_toggled is not None:
+            self.edges_toggled(checked)
+        elif kind == 'normals' and self.normals_toggled is not None:
+            self.normals_toggled(checked)
 
 
 class MeshInfo(_gui_common.PilotFeature):
@@ -243,6 +268,8 @@ class MeshInfo(_gui_common.PilotFeature):
             return
         self._panel = MeshInfoTree(self._status)
         self._panel.boundary_toggled = self._on_boundary_toggled
+        self._panel.edges_toggled = self._on_edges_toggled
+        self._panel.normals_toggled = self._on_normals_toggled
         self._dock = QDockWidget("mesh")
         self._dock.setWidget(self._panel)
         self._mgr.mainWindow.addDockWidget(Qt.LeftDockWidgetArea,
@@ -273,6 +300,18 @@ class MeshInfo(_gui_common.PilotFeature):
         widget = self._mgr.currentR3DWidget()
         if widget is not None:
             widget.showBoundary(ibc, checked)
+
+    def _on_edges_toggled(self, checked):
+        """Show or hide the feature-edge overlay in the active viewer."""
+        widget = self._mgr.currentR3DWidget()
+        if widget is not None:
+            widget.showFeatureEdges(checked)
+
+    def _on_normals_toggled(self, checked):
+        """Show or hide the face-normal arrows in the active viewer."""
+        widget = self._mgr.currentR3DWidget()
+        if widget is not None:
+            widget.showNormals(checked)
 
     def _mdi_area(self):
         return self._mainWindow.centralWidget()
