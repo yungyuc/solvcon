@@ -47,7 +47,28 @@ viewer.updateMesh(mesh)                   # wireframe only, the default
 viewer.showMeshStyle("surface", True)     # add the lit shaded surface
 viewer.showMeshStyle("wireframe", False)  # drop the wireframe over it
 viewer.meshStyleShown("points")           # False
+viewer.setRepresentation("surface_edges")  # surface with the wireframe over it
 ```
+
+## Layering and opacity
+
+The wireframe and the colored field are separate layers drawn in the same
+scene, so showing both draws the wireframe over the shaded surface as one
+representation. Each layer takes an adjustable opacity, a fraction from `0`
+(fully transparent) to `1` (fully opaque, the default):
+
+- `setFieldOpacity(alpha)` fades the shaded surface. Lower it to read the
+  wireframe and any structure behind the surface.
+- `setMeshOpacity(alpha)` fades the wireframe.
+
+```python
+viewer.updateMesh(mesh)                    # wireframe layer
+viewer.updateColorField(verts, cols, tris)  # shaded surface layer
+viewer.setFieldOpacity(0.5)                # see the wireframe through it
+```
+
+The opacity is applied on the next frame, so it takes effect immediately in the
+live viewer and in a captured frame.
 
 ## Camera navigation
 

@@ -159,6 +159,36 @@ bool RDomainWidget::meshStyleShown(std::string const & name) const
     return false;
 }
 
+void RDomainWidget::setRepresentation(std::string const & name)
+{
+    if ("surface" == name)
+    {
+        m_show_surface = true;
+        m_show_wireframe = m_show_points = false;
+    }
+    else if ("wireframe" == name)
+    {
+        m_show_wireframe = true;
+        m_show_surface = m_show_points = false;
+    }
+    else if ("points" == name)
+    {
+        m_show_points = true;
+        m_show_surface = m_show_wireframe = false;
+    }
+    else if ("surface_edges" == name)
+    {
+        m_show_surface = m_show_wireframe = true;
+        m_show_points = false;
+    }
+    else
+    {
+        return; // Ignore an unknown name.
+    }
+    applyMeshVisibility();
+    update();
+}
+
 void RDomainWidget::applyMeshVisibility()
 {
     if (nullptr != m_mesh_surface)
@@ -172,6 +202,24 @@ void RDomainWidget::applyMeshVisibility()
     if (nullptr != m_mesh_points)
     {
         m_mesh_points->setVisible(m_mesh_shown && m_show_points);
+    }
+}
+
+void RDomainWidget::setMeshOpacity(float opacity)
+{
+    if (nullptr != m_mesh_frame)
+    {
+        m_mesh_frame->setOpacity(opacity);
+        update();
+    }
+}
+
+void RDomainWidget::setFieldOpacity(float opacity)
+{
+    if (nullptr != m_field)
+    {
+        m_field->setOpacity(opacity);
+        update();
     }
 }
 
