@@ -152,6 +152,8 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRDomainWidget
             .def_property_readonly("mesh", &wrapped_type::mesh)
             .def("updateMesh", &wrapped_type::updateMesh, py::arg("mesh"))
             .def("showMesh", &wrapped_type::showMesh, py::arg("show"))
+            .def("setMeshOpacity", &wrapped_type::setMeshOpacity, py::arg("opacity"))
+            .def("setFieldOpacity", &wrapped_type::setFieldOpacity, py::arg("opacity"))
             .def(
                 "showMeshStyle",
                 &wrapped_type::showMeshStyle,
@@ -164,6 +166,13 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRDomainWidget
                 &wrapped_type::meshStyleShown,
                 py::arg("name"),
                 "Whether the named mesh style is currently shown.")
+            .def(
+                "setRepresentation",
+                &wrapped_type::setRepresentation,
+                py::arg("name"),
+                "Select a representation preset over the mesh styles: "
+                "\"surface\", \"wireframe\", \"points\", or \"surface_edges\" "
+                "(the lit surface with the wireframe over it).")
             .def(
                 "updateColorField",
                 &wrapped_type::updateColorField,
@@ -544,8 +553,10 @@ void wrap_pilot(pybind11::module & mod)
         mod,
         "RDomainWidget",
         "Interactive QRhi viewer for 2D and 3D unstructured-mesh domains and "
-        "fields. Drive it with updateMesh / showMesh / showMeshStyle, "
-        "updateColorField, showBoundary, and showAxis; navigate with cameraMode, the "
+        "fields. Drive it with updateMesh / showMesh / showMeshStyle / "
+        "setRepresentation / setMeshOpacity, "
+        "updateColorField / setFieldOpacity, "
+        "showBoundary, and showAxis; navigate with cameraMode, the "
         "cameraPosition / cameraTarget / cameraUp pose, rotateCamera / "
         "panCamera / zoomCamera / pinchCamera, and fitCameraToScene; capture "
         "frames with "
