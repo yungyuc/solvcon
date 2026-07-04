@@ -17,6 +17,7 @@ set(SOLVCON_PILOT_PYMODHEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/DrawTool.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RWorldRenderer2d.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RManager.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/RMenuModel.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RPythonConsoleDockWidget.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RAction.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pilot.hpp
@@ -38,6 +39,7 @@ set(SOLVCON_PILOT_PYMODSOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/DrawTool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RWorldRenderer2d.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/RMenuModel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RPythonConsoleDockWidget.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RAction.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/wrap_pilot.cpp
