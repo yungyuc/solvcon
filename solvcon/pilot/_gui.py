@@ -166,6 +166,13 @@ class _Controller(metaclass=_Singleton):
                 wm.toggleConsole, id="window.console",
                 checkable=True, checked=True),
             50)
+        wm.menu_model.place(
+            "Window",
+            _gui_common.build_action(
+                wm.mainWindow, "Terminal", "Open / Close Terminal",
+                wm.toggleTerminal, id="window.terminal",
+                checkable=True, checked=False),
+            51)
 
 
 controller = _Controller()

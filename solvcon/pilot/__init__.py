@@ -16,6 +16,7 @@ from ._pilot_core import (  # noqa: F401
     RDomainWidget,
     R2DWidget,
     RPythonConsoleDockWidget,
+    RPythonTerminalDockWidget,
     RManager,
 )
 if enable:

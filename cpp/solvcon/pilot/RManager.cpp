@@ -53,6 +53,7 @@ RManager & RManager::setUp()
     if (!m_already_setup)
     {
         this->setUpConsole();
+        this->setUpTerminal();
         this->setUpCentral();
         this->primeRhiComposition();
         this->setUpMenu();
@@ -78,6 +79,7 @@ void RManager::reset()
     m_mainWindow = nullptr;
     m_menuModel = nullptr;
     m_pycon = nullptr;
+    m_terminal = nullptr;
     m_mdiArea = nullptr;
     m_rhi_primer = nullptr;
 }
@@ -300,6 +302,33 @@ void RManager::setUpConsole()
     m_pycon = new RPythonConsoleDockWidget(QString("Console"), m_mainWindow);
     m_pycon->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_mainWindow->addDockWidget(Qt::BottomDockWidgetArea, m_pycon);
+}
+
+void RManager::toggleTerminal()
+{
+    if (m_terminal)
+    {
+        if (m_terminal->isVisible())
+        {
+            m_terminal->hide();
+        }
+        else
+        {
+            m_terminal->show();
+        }
+    }
+}
+
+void RManager::setUpTerminal()
+{
+    m_terminal = new RPythonTerminalDockWidget(QString("Terminal"), m_mainWindow);
+    m_terminal->setAllowedAreas(Qt::AllDockWidgetAreas);
+    m_mainWindow->addDockWidget(Qt::BottomDockWidgetArea, m_terminal);
+
+    // The two consoles share the bottom area as tabs, with the two-pane
+    // console shown first; the terminal is opened from the Window menu.
+    m_mainWindow->tabifyDockWidget(m_pycon, m_terminal);
+    m_terminal->hide();
 }
 
 void RManager::setUpCentral()

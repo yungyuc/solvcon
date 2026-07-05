@@ -19,6 +19,7 @@
 #include <solvcon/pilot/R2DWidget.hpp>
 #include <solvcon/pilot/RAction.hpp>
 #include <solvcon/pilot/RPythonConsoleDockWidget.hpp>
+#include <solvcon/pilot/RPythonTerminalDockWidget.hpp>
 
 #include <vector>
 
@@ -74,6 +75,8 @@ public:
 
     RPythonConsoleDockWidget * pycon() { return m_pycon; }
 
+    RPythonTerminalDockWidget * terminal() { return m_terminal; }
+
     QMainWindow * mainWindow() { return m_mainWindow; }
 
     QMdiArea * mdiArea() { return m_mdiArea; }
@@ -90,12 +93,14 @@ public:
     void reset();
 
     void toggleConsole();
+    void toggleTerminal();
 
 private:
 
     RManager();
 
     void setUpConsole();
+    void setUpTerminal();
     void setUpCentral();
     void setUpMenu();
 
@@ -130,6 +135,7 @@ private:
     RMenuModel * m_menuModel = nullptr;
 
     RPythonConsoleDockWidget * m_pycon = nullptr;
+    RPythonTerminalDockWidget * m_terminal = nullptr;
     QMdiArea * m_mdiArea = nullptr;
 
     /// Hidden QRhiWidget that keeps the main window in render-to-texture
