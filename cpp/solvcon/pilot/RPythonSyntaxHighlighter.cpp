@@ -8,6 +8,7 @@
 #include <solvcon/pilot/RPythonSyntaxRules.hpp>
 
 #include <QColor>
+#include <QTextBlock>
 
 namespace solvcon
 {
@@ -26,6 +27,19 @@ RPythonSyntaxHighlighter::RPythonSyntaxHighlighter(QTextDocument * parent)
 
 void RPythonSyntaxHighlighter::highlightBlock(QString const & text)
 {
+    // In a shared document, leave the committed transcript above the input
+    // region uncolored. The input's block starts at the prompt, before the
+    // input anchor, so a block is committed only when it ends at or before
+    // the anchor.
+    if (m_input_start_provider)
+    {
+        QTextBlock const block = currentBlock();
+        if (block.position() + block.length() <= m_input_start_provider())
+        {
+            return;
+        }
+    }
+
     for (SyntaxSpan const & span : tokenizePython(text.toStdString()))
     {
         QTextCharFormat const * format = nullptr;
