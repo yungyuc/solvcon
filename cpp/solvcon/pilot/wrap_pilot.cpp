@@ -673,6 +673,53 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRPythonConsoleDockWidget
 
 }; /* end class WrapRPythonConsoleDockWidget */
 
+class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRPythonTerminalDockWidget
+    : public WrapBase<WrapRPythonTerminalDockWidget, RPythonTerminalDockWidget>
+{
+
+    friend root_base_type;
+
+    WrapRPythonTerminalDockWidget(pybind11::module & mod, char const * pyname, char const * pydoc)
+        : root_base_type(mod, pyname, pydoc)
+    {
+
+        namespace py = pybind11;
+
+        (*this)
+            .def("writeToHistory", &wrapped_type::writeToHistory)
+            .def("executeCommand", &wrapped_type::executeCommand)
+            .def_property_readonly(
+                "textEdit",
+                [](wrapped_type & self)
+                {
+                    return self.textEdit();
+                })
+            .def_property(
+                "command",
+                [](wrapped_type const & self)
+                {
+                    return self.command().toStdString();
+                },
+                [](wrapped_type & self, std::string const & command)
+                {
+                    return self.setCommand(QString::fromStdString(command));
+                })
+            .def_property(
+                "python_redirect",
+                [](wrapped_type const & self)
+                {
+                    return self.hasPythonRedirect();
+                },
+                [](wrapped_type & self, bool enabled)
+                {
+                    self.setPythonRedirect(enabled);
+                })
+            //
+            ;
+    }
+
+}; /* end class WrapRPythonTerminalDockWidget */
+
 class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRMenuModel
     : public WrapBase<WrapRMenuModel, RMenuModel>
 {
@@ -803,6 +850,12 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 {
                     return self.pycon();
                 })
+            .def_property_readonly(
+                "terminal",
+                [](wrapped_type & self)
+                {
+                    return self.terminal();
+                })
             .def(
                 "add3DWidget",
                 [](wrapped_type & self)
@@ -852,6 +905,12 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 [](wrapped_type & self)
                 {
                     return self.toggleConsole();
+                })
+            .def(
+                "toggleTerminal",
+                [](wrapped_type & self)
+                {
+                    return self.toggleTerminal();
                 })
             //
             ;
@@ -973,6 +1032,7 @@ void wrap_pilot(pybind11::module & mod)
         "saveImage / clipImage.");
     WrapR2DWidget::commit(mod, "R2DWidget", "R2DWidget");
     WrapRPythonConsoleDockWidget::commit(mod, "RPythonConsoleDockWidget", "RPythonConsoleDockWidget");
+    WrapRPythonTerminalDockWidget::commit(mod, "RPythonTerminalDockWidget", "RPythonTerminalDockWidget");
     WrapRMenuModel::commit(
         mod,
         "RMenuModel",
