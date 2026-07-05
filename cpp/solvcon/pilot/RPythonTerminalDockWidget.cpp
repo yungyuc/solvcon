@@ -10,6 +10,7 @@
 #include <algorithm>
 
 #include <QAbstractItemView>
+#include <QApplication>
 #include <QColor>
 #include <QFont>
 #include <QKeyEvent>
@@ -81,6 +82,18 @@ void RPythonTerminalTextEdit::appendCommitted(QString const & text)
     QTextCursor cursor(document());
     cursor.movePosition(QTextCursor::End);
     cursor.insertText(text);
+}
+
+void RPythonTerminalTextEdit::appendOutput(QString const & text, bool is_error)
+{
+    QTextCursor cursor(document());
+    cursor.movePosition(QTextCursor::End);
+
+    QTextCharFormat format;
+    // stderr in red, stdout in a near-black that stays distinct from the
+    // syntax-colored input echo above it.
+    format.setForeground(is_error ? QColor(170, 0, 0) : QColor(30, 30, 30));
+    cursor.insertText(text, format);
 }
 
 bool RPythonTerminalTextEdit::cursorInInput() const
@@ -494,6 +507,11 @@ void RPythonTerminalDockWidget::executeCommand()
     bool more = false;
     std::string last_line;
     auto & interp = solvcon::python::Interpreter::instance();
+
+    // The command runs on the GUI thread, so a slow one freezes the window.
+    // Show a busy cursor for the duration; run_worker in the console offloads
+    // heavy work to a worker thread when responsiveness matters.
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     m_python_redirect.activate();
     for (QString const & line : lines)
     {
@@ -510,14 +528,15 @@ void RPythonTerminalDockWidget::executeCommand()
         std::string const err = m_python_redirect.stderr_string();
         if (!out.empty())
         {
-            m_edit->appendCommitted(QString::fromStdString(out));
+            m_edit->appendOutput(QString::fromStdString(out), /*is_error=*/false);
         }
         if (!err.empty())
         {
-            m_edit->appendCommitted(QString::fromStdString(err));
+            m_edit->appendOutput(QString::fromStdString(err), /*is_error=*/true);
         }
     }
     m_python_redirect.deactivate();
+    QApplication::restoreOverrideCursor();
 
     if (!m_pending_statement.empty())
     {

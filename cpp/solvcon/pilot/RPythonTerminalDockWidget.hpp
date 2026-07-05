@@ -69,6 +69,10 @@ public:
     /// Append @p text at the end of the committed transcript.
     void appendCommitted(QString const & text);
 
+    /// Append captured output at the end of the transcript, colored to tell
+    /// stderr from stdout.
+    void appendOutput(QString const & text, bool is_error);
+
     int inputStart() const { return m_input_start; }
 
     void setCompleter(QCompleter * completer);

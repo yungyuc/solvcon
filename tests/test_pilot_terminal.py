@@ -201,6 +201,29 @@ class TerminalWidgetTC(unittest.TestCase):
         pos = self.edit.toPlainText().find("pass")
         self.assertNotIn((0, 0, 180), self._layout_colors(pos))
 
+    def test_stderr_output_is_red(self):
+        self.term.command = "1 / 0"
+        self.term.executeCommand()
+        text = self.edit.toPlainText()
+        color = self._doc_color_at(text.find("ZeroDivisionError"))
+        self.assertEqual((color.red(), color.green(), color.blue()),
+                         (170, 0, 0))
+
+    def test_stdout_output_has_its_own_format(self):
+        self.term.command = "print('marker_out')"
+        self.term.executeCommand()
+        text = self.edit.toPlainText()
+        # rfind lands on the captured output, not the input echo above it.
+        color = self._doc_color_at(text.rfind("marker_out"))
+        self.assertEqual((color.red(), color.green(), color.blue()),
+                         (30, 30, 30))
+
+    def _doc_color_at(self, index):
+        """The stored foreground of the character at ``index``."""
+        cursor = QtGui.QTextCursor(self.edit.document())
+        cursor.setPosition(index + 1)
+        return cursor.charFormat().foreground().color()
+
     def _layout_colors(self, index):
         """Foreground colors the highlighter laid on the block at ``index``."""
         block = self.edit.document().findBlock(index)
