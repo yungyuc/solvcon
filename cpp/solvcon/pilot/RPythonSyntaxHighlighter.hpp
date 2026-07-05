@@ -13,6 +13,8 @@
  * @ingroup group_domain
  */
 
+#include <functional>
+
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
 
@@ -35,12 +37,21 @@ public:
 
     explicit RPythonSyntaxHighlighter(QTextDocument * parent);
 
+    /// Restrict painting to blocks at or after the position the provider
+    /// returns, so a shared document (such as the terminal's) keeps its
+    /// committed transcript uncolored. Unset means paint every block.
+    void setInputStartProvider(std::function<int()> provider)
+    {
+        m_input_start_provider = std::move(provider);
+    }
+
 protected:
 
     void highlightBlock(QString const & text) override;
 
 private:
 
+    std::function<int()> m_input_start_provider;
     QTextCharFormat m_keyword_format;
     QTextCharFormat m_builtin_format;
     QTextCharFormat m_string_format;
