@@ -17,13 +17,26 @@ import solvcon
 
 try:
     from solvcon import pilot
-    from PySide6 import QtCore
-    from PySide6.QtTest import QTest
+    from PySide6 import QtCore, QtGui, QtWidgets
 except ImportError:
     pilot = None
 
 
-@unittest.skipUnless(solvcon.HAS_PILOT, "Qt pilot is not built")
+def _send_key(widget, key, text="", mod=None):
+    """Post a synthetic key press and release to ``widget``.
+
+    Built by hand rather than through ``QtTest`` so the tests need only the
+    always-present PySide6 widget modules, matching the other pilot tests.
+    """
+    if mod is None:
+        mod = QtCore.Qt.NoModifier
+    for etype in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
+        event = QtGui.QKeyEvent(etype, key, mod, text)
+        QtWidgets.QApplication.sendEvent(widget, event)
+
+
+@unittest.skipUnless(solvcon.HAS_PILOT and pilot is not None,
+                     "Qt pilot is not built")
 class TerminalWidgetTC(unittest.TestCase):
 
     @classmethod
@@ -37,10 +50,11 @@ class TerminalWidgetTC(unittest.TestCase):
         self.term.command = ""
 
     def _type(self, text):
-        QTest.keyClicks(self.edit, text)
+        for ch in text:
+            _send_key(self.edit, ord(ch.upper()), ch)
 
-    def _key(self, key, mod=QtCore.Qt.NoModifier):
-        QTest.keyClick(self.edit, key, mod)
+    def _key(self, key, mod=None):
+        _send_key(self.edit, key, "", mod)
 
     def test_terminal_exists_and_shows_prompt(self):
         self.assertIsNotNone(self.term)
