@@ -10,6 +10,7 @@
 
 #include <solvcon/pilot/R2DWidget.hpp>
 #include <solvcon/pilot/RMenuModel.hpp>
+#include <solvcon/pilot/RThemeManager.hpp>
 #include <solvcon/pilot/pilot.hpp>
 
 #include <QAction>
@@ -876,6 +877,25 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 [](wrapped_type & self)
                 {
                     return self.menuModel();
+                })
+            .def(
+                "set_theme",
+                [](wrapped_type & self, std::string const & mode)
+                {
+                    self.themeManager()->setModeById(mode);
+                },
+                py::arg("mode"))
+            .def_property_readonly(
+                "theme_mode",
+                [](wrapped_type & self)
+                {
+                    return self.themeManager()->modeId();
+                })
+            .def_property_readonly(
+                "theme_variant",
+                [](wrapped_type & self)
+                {
+                    return self.themeManager()->variantId();
                 })
             .def(
                 "quit",

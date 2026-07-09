@@ -12,12 +12,15 @@
 #include <solvcon/pilot/DrawTool.hpp>
 #include <solvcon/pilot/RAction.hpp>
 #include <solvcon/pilot/RMenuModel.hpp>
+#include <solvcon/pilot/RThemeManager.hpp>
 #include <Qt>
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
 #include <QActionGroup>
 #include <QKeySequence>
+#include <QColor>
+#include <QPalette>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -44,6 +47,10 @@ RManager::RManager()
 
     m_mainWindow = new QMainWindow;
     m_mainWindow->setWindowIcon(QIcon(QString(":/icon.ico")));
+    // The theme controller is parented to the manager, not the window, so its
+    // OS color-scheme connection survives a window rebuild. The palette is
+    // applied in setUp(), before any widget is created.
+    m_themeManager = new RThemeManager(this);
     // Do not call setUp() from the constructor.  Windows may crash with
     // "exited with code -1073740791".  The reason is not yet clarified.
 }
@@ -52,6 +59,9 @@ RManager & RManager::setUp()
 {
     if (!m_already_setup)
     {
+        // Paint the base style and palette before any widget exists, so every
+        // widget below is created already themed.
+        this->m_themeManager->apply();
         this->setUpConsole();
         this->setUpCentral();
         this->primeRhiComposition();
@@ -77,6 +87,7 @@ void RManager::reset()
     m_core.reset();
     m_mainWindow = nullptr;
     m_menuModel = nullptr;
+    m_themeManager = nullptr;
     m_pycon = nullptr;
     m_mdiArea = nullptr;
     m_rhi_primer = nullptr;
@@ -312,6 +323,15 @@ void RManager::setUpCentral()
     // single Painter toolbox always drives whichever canvas has focus.
     QObject::connect(m_mdiArea, &QMdiArea::subWindowActivated, m_mdiArea, [this](QMdiSubWindow *)
                      { applyDrawTool(); });
+
+    // The MDI area paints its own backdrop instead of reading the palette, so
+    // drive it from the window color and follow theme changes; otherwise a
+    // stale mid-grey slab shows through under the dark theme.
+    auto matchBackdrop = [this]()
+    { m_mdiArea->setBackground(m_mainWindow->palette().color(QPalette::Window)); };
+    matchBackdrop();
+    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_mdiArea, [matchBackdrop](ThemeVariant)
+                     { matchBackdrop(); });
 }
 
 void RManager::primeRhiComposition()
@@ -352,6 +372,7 @@ void RManager::setUpMenu()
     m_menuModel->menu("Window", 70);
 
     setUpEditMenuItems();
+    setUpThemeMenuItems();
     // Code for controlling camera is not exposed to Python yet.
     setUpCameraControllersMenuItems();
     setUpCameraMovementMenuItems();
@@ -380,6 +401,59 @@ void RManager::setUpEditMenuItems() const
 
     m_menuModel->place("Edit", undo_action, 10);
     m_menuModel->place("Edit", redo_action, 20);
+}
+
+void RManager::setUpThemeMenuItems() const
+{
+    struct ThemeItem
+    {
+        ThemeMode mode;
+        QString tip;
+    };
+    std::vector<ThemeItem> const items = {
+        {ThemeMode::System, QString("Follow the operating system light or dark setting")},
+        {ThemeMode::Light, QString("Use the light palette")},
+        {ThemeMode::Dark, QString("Use the dark palette")},
+    };
+
+    // The group owns the exclusive mode, held by the model under a group id so
+    // Python can query the checked action, mirroring the camera controllers.
+    auto * themeGroup = m_menuModel->group("theme.mode");
+    int weight = 10;
+    for (auto const & item : items)
+    {
+        ThemeMode const mode = item.mode;
+        auto * action = new RAction(
+            QString(themeModeLabel(mode)), item.tip, [this, mode]()
+            { m_themeManager->setMode(mode); },
+            m_menuModel);
+        action->setObjectName(QString("theme.mode_") + themeModeId(mode));
+        action->setCheckable(true);
+        themeGroup->addAction(action);
+        m_menuModel->place("View/Theme", action, weight);
+        weight += 10;
+    }
+
+    // Keep the radio check in step with the manager whichever way the theme
+    // moves: a menu click, a console set_theme(), or an operating-system change
+    // while following the system. Parent the connection to the model so it dies
+    // with the menu.
+    QObject::connect(
+        m_themeManager,
+        &RThemeManager::themeChanged,
+        m_menuModel,
+        [this](ThemeVariant)
+        {
+            if (QAction * current = m_menuModel->action("theme.mode_" + m_themeManager->modeId()))
+            {
+                current->setChecked(true);
+            }
+        });
+
+    if (QAction * follow = m_menuModel->action("theme.mode_system"))
+    {
+        follow->setChecked(true);
+    }
 }
 
 void RManager::setUpCameraControllersMenuItems() const

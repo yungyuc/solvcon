@@ -297,16 +297,12 @@ RPythonConsoleDockWidget::RPythonConsoleDockWidget(const QString & title, QWidge
     container->setLayout(layout);
     setWidget(container);
 
-    QPalette palette = QPalette();
-    palette.setColor(QPalette::Base, Qt::white);
-    palette.setColor(QPalette::Text, Qt::black);
-    palette.setColor(QPalette::PlaceholderText, Qt::darkGray);
-
+    // Leave the text colors to the application palette so the console follows
+    // the active light or dark theme instead of forcing black-on-white.
     m_history_edit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_history_edit->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_history_edit->setFont(QFont("Courier New"));
     m_history_edit->setReadOnly(true);
-    m_history_edit->setPalette(palette);
     layout->addWidget(m_history_edit, /*stretch=*/1);
 
     constexpr int commandEditMinHeight = 40;
@@ -314,7 +310,6 @@ RPythonConsoleDockWidget::RPythonConsoleDockWidget(const QString & title, QWidge
     m_command_edit->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_command_edit->setFont(QFont("Courier New"));
     m_command_edit->setFixedHeight(commandEditMinHeight);
-    m_command_edit->setPalette(palette);
     m_command_edit->setPlaceholderText("Shift+Enter to create new line. Enter to execute.");
     layout->addWidget(m_command_edit, /*stretch=*/0);
 
