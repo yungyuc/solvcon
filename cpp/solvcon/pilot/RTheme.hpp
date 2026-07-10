@@ -95,6 +95,26 @@ struct ThemePalette
     ThemeColor disabled_highlight;
 };
 
+/**
+ * @brief The colors the console's Python highlighter and its matching-bracket
+ * marker draw with.
+ *
+ * These are not QPalette roles, so they live apart from ThemePalette; the
+ * console reads them directly. Like the palette they come in a light and a
+ * dark table so the highlighted code stays legible under either variant, which
+ * the hardcoded single set could not do once the console followed the theme.
+ * bracket_match is a background wash behind a matched pair of brackets.
+ */
+struct SyntaxColors
+{
+    ThemeColor keyword;
+    ThemeColor builtin;
+    ThemeColor string;
+    ThemeColor comment;
+    ThemeColor number;
+    ThemeColor bracket_match;
+};
+
 /// The curated light palette.
 ThemePalette const & lightThemePalette();
 
@@ -103,6 +123,15 @@ ThemePalette const & darkThemePalette();
 
 /// The palette backing a resolved variant.
 ThemePalette const & themePaletteFor(ThemeVariant variant);
+
+/// The console syntax colors tuned for a light background.
+SyntaxColors const & lightSyntaxColors();
+
+/// The console syntax colors tuned for a dark background.
+SyntaxColors const & darkSyntaxColors();
+
+/// The syntax colors backing a resolved variant.
+SyntaxColors const & syntaxColorsFor(ThemeVariant variant);
 
 /**
  * @brief Resolve a requested mode to a concrete variant.

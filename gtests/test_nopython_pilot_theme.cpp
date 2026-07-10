@@ -9,9 +9,12 @@
 
 #include <gtest/gtest.h>
 
+using solvcon::darkSyntaxColors;
 using solvcon::darkThemePalette;
+using solvcon::lightSyntaxColors;
 using solvcon::lightThemePalette;
 using solvcon::resolveThemeVariant;
+using solvcon::syntaxColorsFor;
 using solvcon::ThemeMode;
 using solvcon::themeModeFromId;
 using solvcon::themeModeId;
@@ -73,6 +76,29 @@ TEST(PilotThemePalette, LightAndDarkDifferAndAreConsistent)
     // themePaletteFor selects the matching table.
     EXPECT_EQ(themePaletteFor(ThemeVariant::Light).window.r, light.window.r);
     EXPECT_EQ(themePaletteFor(ThemeVariant::Dark).window.r, dark.window.r);
+}
+
+TEST(PilotThemeSyntax, DarkTokensAreBrighterAndSelectByVariant)
+{
+    auto const & light = lightSyntaxColors();
+    auto const & dark = darkSyntaxColors();
+
+    auto sum = [](solvcon::ThemeColor c)
+    { return int(c.r) + int(c.g) + int(c.b); };
+
+    // The two tables must differ, or the console cannot follow the theme.
+    EXPECT_NE(sum(light.keyword), sum(dark.keyword));
+
+    // Dark tokens sit on a dark base, so each category is lifted brighter than
+    // its light-table counterpart; this guards against the tables being
+    // swapped.
+    EXPECT_GT(sum(dark.keyword), sum(light.keyword));
+    EXPECT_GT(sum(dark.string), sum(light.string));
+    EXPECT_GT(sum(dark.number), sum(light.number));
+
+    // syntaxColorsFor selects the matching table.
+    EXPECT_EQ(syntaxColorsFor(ThemeVariant::Light).keyword.b, light.keyword.b);
+    EXPECT_EQ(syntaxColorsFor(ThemeVariant::Dark).keyword.b, dark.keyword.b);
 }
 
 // vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4:

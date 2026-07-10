@@ -147,7 +147,7 @@ void RPythonCommandTextEdit::highlightMatchingBracket()
         cursor.setPosition(position + 1, QTextCursor::KeepAnchor);
         QTextEdit::ExtraSelection selection;
         selection.cursor = cursor;
-        selection.format.setBackground(QColor(180, 180, 255));
+        selection.format.setBackground(m_bracket_match_color);
         selections.append(selection);
     };
 
@@ -171,6 +171,12 @@ void RPythonCommandTextEdit::highlightMatchingBracket()
     tryMatch(pos);
     tryMatch(pos - 1);
     setExtraSelections(selections);
+}
+
+void RPythonCommandTextEdit::setBracketMatchColor(QColor const & color)
+{
+    m_bracket_match_color = color;
+    highlightMatchingBracket();
 }
 
 // Tab-triggered auto-completion workflow:
@@ -372,6 +378,14 @@ RPythonConsoleDockWidget::RPythonConsoleDockWidget(const QString & title, QWidge
     connect(m_command_edit, &RPythonCommandTextEdit::completionRequested, this, &RPythonConsoleDockWidget::handleCompletionRequest);
     connect(m_command_edit, &RPythonCommandTextEdit::callTipRequested, this, &RPythonConsoleDockWidget::handleCallTipRequest);
     connect(m_command_edit, &QTextEdit::textChanged, this, &RPythonConsoleDockWidget::updateCompletionPrefix);
+}
+
+void RPythonConsoleDockWidget::applyTheme(ThemeVariant variant)
+{
+    SyntaxColors const & colors = syntaxColorsFor(variant);
+    m_highlighter->applyColors(colors);
+    m_command_edit->setBracketMatchColor(
+        QColor(colors.bracket_match.r, colors.bracket_match.g, colors.bracket_match.b));
 }
 
 QString RPythonConsoleDockWidget::command() const

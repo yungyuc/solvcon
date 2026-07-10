@@ -311,6 +311,13 @@ void RManager::setUpConsole()
     m_pycon = new RPythonConsoleDockWidget(QString("Console"), m_mainWindow);
     m_pycon->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_mainWindow->addDockWidget(Qt::BottomDockWidgetArea, m_pycon);
+
+    // The console's syntax colors and bracket marker are not QPalette roles, so
+    // drive them from the theme directly. The theme was applied before this
+    // widget existed, so seed it now, then follow later switches.
+    m_pycon->applyTheme(m_themeManager->currentVariant());
+    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_pycon, [this](ThemeVariant variant)
+                     { m_pycon->applyTheme(variant); });
 }
 
 void RManager::setUpCentral()
@@ -325,13 +332,18 @@ void RManager::setUpCentral()
                      { applyDrawTool(); });
 
     // The MDI area paints its own backdrop instead of reading the palette, so
-    // drive it from the window color and follow theme changes; otherwise a
-    // stale mid-grey slab shows through under the dark theme.
-    auto matchBackdrop = [this]()
-    { m_mdiArea->setBackground(m_mainWindow->palette().color(QPalette::Window)); };
-    matchBackdrop();
-    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_mdiArea, [matchBackdrop](ThemeVariant)
-                     { matchBackdrop(); });
+    // drive it from the theme's window color and follow theme changes;
+    // otherwise a stale mid-grey slab shows through under the dark theme. Take
+    // the color from the theme model, not m_mainWindow->palette(): when
+    // themeChanged fires the freshly set application palette has not yet
+    // propagated to the window, so palette() would lag one switch behind.
+    auto paintBackdrop = [this](ThemeVariant variant)
+    {
+        ThemeColor const c = themePaletteFor(variant).window;
+        m_mdiArea->setBackground(QColor(c.r, c.g, c.b));
+    };
+    paintBackdrop(m_themeManager->currentVariant());
+    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_mdiArea, paintBackdrop);
 }
 
 void RManager::primeRhiComposition()

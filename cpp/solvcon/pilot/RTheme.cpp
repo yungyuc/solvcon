@@ -67,6 +67,35 @@ static ThemePalette makeDarkPalette()
     return p;
 }
 
+// The syntax colors keep the light table's familiar hues (a blue keyword, a
+// teal builtin, a red string, a magenta number) and lift each to a brighter,
+// lower-saturation tint for the dark table so the tokens read clearly on the
+// dark base instead of sinking into it.
+
+static SyntaxColors makeLightSyntaxColors()
+{
+    SyntaxColors c;
+    c.keyword = {0x00, 0x00, 0xb4};
+    c.builtin = {0x00, 0x6e, 0x6e};
+    c.string = {0xa0, 0x00, 0x00};
+    c.comment = {0x80, 0x80, 0x80};
+    c.number = {0x8c, 0x00, 0x8c};
+    c.bracket_match = {0xb4, 0xb4, 0xff};
+    return c;
+}
+
+static SyntaxColors makeDarkSyntaxColors()
+{
+    SyntaxColors c;
+    c.keyword = {0x6a, 0xb7, 0xff};
+    c.builtin = {0x4e, 0xc9, 0xb0};
+    c.string = {0xe5, 0x92, 0x8b};
+    c.comment = {0x80, 0x84, 0x89};
+    c.number = {0xd6, 0xa4, 0xe0};
+    c.bracket_match = {0x3d, 0x50, 0x6b};
+    return c;
+}
+
 ThemePalette const & lightThemePalette()
 {
     static ThemePalette const palette = makeLightPalette();
@@ -82,6 +111,23 @@ ThemePalette const & darkThemePalette()
 ThemePalette const & themePaletteFor(ThemeVariant variant)
 {
     return variant == ThemeVariant::Dark ? darkThemePalette() : lightThemePalette();
+}
+
+SyntaxColors const & lightSyntaxColors()
+{
+    static SyntaxColors const colors = makeLightSyntaxColors();
+    return colors;
+}
+
+SyntaxColors const & darkSyntaxColors()
+{
+    static SyntaxColors const colors = makeDarkSyntaxColors();
+    return colors;
+}
+
+SyntaxColors const & syntaxColorsFor(ThemeVariant variant)
+{
+    return variant == ThemeVariant::Dark ? darkSyntaxColors() : lightSyntaxColors();
 }
 
 ThemeVariant resolveThemeVariant(ThemeMode mode, bool os_prefers_dark)
