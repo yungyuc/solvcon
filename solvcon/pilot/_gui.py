@@ -14,7 +14,12 @@ from . import _pilot_core as _pcore
 from . import airfoil
 
 if _pcore.enable:
+    from PySide6.QtCore import Qt
     from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import (QApplication, QLabel,
+                                   QVBoxLayout, QHBoxLayout,
+                                   QGroupBox, QButtonGroup, QPushButton,
+                                   QRadioButton, QDialog)
     from . import _gui_common
     from . import _mesh
     from . import _mesh_info
@@ -48,6 +53,75 @@ class _Singleton(type):
         return cls._instances[cls]
 
 
+class AppearanceDialog(QDialog):
+    """
+    AppearanceDialog class for managing the general look
+    and feel of Qt widgets.
+
+    This class inherits from the QDialog class and provides radio buttons
+    for seleting color themes.
+    """
+    def __init__(self, *args, **kw):
+        super(AppearanceDialog, self).__init__(*args, **kw)
+        self.qApp = QApplication.instance()
+        self.button_group = QButtonGroup()
+        self.init_ui()
+
+    def on_ok(self):
+        controller.on_close_appearance()
+
+    def on_click_light_mode(self):
+        self.qApp.styleHints().setColorScheme(Qt.ColorScheme.Light)
+
+    def on_click_dark_mode(self):
+        self.qApp.styleHints().setColorScheme(Qt.ColorScheme.Dark)
+
+    def on_click_system_mode(self):
+        self.qApp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
+
+    def init_ui(self):
+        self.setWindowTitle("Appearance")
+        layout = QVBoxLayout()
+
+        layout.addWidget(QLabel("Light/Dark Mode Toggle"))
+
+        light_mode_button = QRadioButton("Light")
+        dark_mode_button = QRadioButton("Dark")
+        system_mode_button = QRadioButton("System")
+        light_mode_button.clicked.connect(self.on_click_light_mode)
+        dark_mode_button.clicked.connect(self.on_click_dark_mode)
+        system_mode_button.clicked.connect(self.on_click_system_mode)
+        light_mode_button.setFocusPolicy(Qt.NoFocus)
+        dark_mode_button.setFocusPolicy(Qt.NoFocus)
+        system_mode_button.setFocusPolicy(Qt.NoFocus)
+
+        scheme = self.qApp.styleHints().colorScheme()
+        if scheme == Qt.ColorScheme.Light:
+            light_mode_button.setChecked(True)
+        elif scheme == Qt.ColorScheme.Dark:
+            dark_mode_button.setChecked(True)
+        else:  # Qt.ColorScheme.Unknown -> "System"
+            system_mode_button.setChecked(True)
+
+        self.button_group.addButton(light_mode_button, 0)
+        self.button_group.addButton(dark_mode_button, 1)
+        self.button_group.addButton(system_mode_button, 2)
+
+        hbox_1 = QHBoxLayout()
+        hbox_1.addWidget(light_mode_button)
+        hbox_1.addWidget(dark_mode_button)
+        hbox_1.addWidget(system_mode_button)
+        group_box_1 = QGroupBox()
+        group_box_1.setLayout(hbox_1)
+        layout.addWidget(group_box_1)
+
+        ok_button = QPushButton("OK")
+        ok_button.clicked.connect(self.on_ok)
+        layout.addWidget(ok_button)
+
+        self.setLayout(layout)
+
+
 class _Controller(metaclass=_Singleton):
     def __init__(self):
         # Do not construct any Qt member objects before calling launch(), or
@@ -73,6 +147,17 @@ class _Controller(metaclass=_Singleton):
         self.openprofiledata = None
         self.runprofiling = None
         self.agent = None
+        self.appearance_dialog = None
+
+    def on_close_appearance(self):
+        if self.appearance_dialog:
+            self.appearance_dialog.close()
+
+    def on_open_appearance(self):
+        if not self.appearance_dialog:
+            self.appearance_dialog = AppearanceDialog(
+                parent=self._rmgr.mainWindow)
+        self.appearance_dialog.exec_()
 
     def __getattr__(self, name):
         return None if self._rmgr is None else getattr(self._rmgr, name)
@@ -170,6 +255,13 @@ class _Controller(metaclass=_Singleton):
                 lambda: wm.quit(), id="file.exit",
                 menu_role=QAction.MenuRole.QuitRole),
             100)
+        wm.menu_model.place(
+            "Window",
+            _gui_common.build_action(
+                wm.mainWindow, "Appearance", "Manage the app's look and feel",
+                controller.on_open_appearance, id="window.appearance",
+                checkable=False, checked=False),
+            40)
         wm.menu_model.place(
             "Window",
             _gui_common.build_action(
