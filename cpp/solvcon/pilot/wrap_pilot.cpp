@@ -905,6 +905,19 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 {
                     return self.themeManager()->variantId();
                 })
+            .def(
+                "set_look",
+                [](wrapped_type & self, std::string const & look)
+                {
+                    self.themeManager()->setLookById(look);
+                },
+                py::arg("look"))
+            .def_property_readonly(
+                "theme_look",
+                [](wrapped_type & self)
+                {
+                    return self.themeManager()->lookId();
+                })
             .def_property_readonly(
                 "theme_platform",
                 [](wrapped_type & self)

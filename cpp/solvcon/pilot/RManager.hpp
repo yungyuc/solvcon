@@ -113,6 +113,7 @@ private:
 
     void setUpEditMenuItems() const;
     void setUpThemeMenuItems() const;
+    void setUpThemeLookItems() const;
     void setUpCameraControllersMenuItems() const;
     void setUpCameraMovementMenuItems() const;
 

@@ -353,15 +353,14 @@ void RManager::setUpCentral()
                      { applyDrawTool(); });
 
     // The MDI area paints its own backdrop instead of reading the palette, so
-    // drive it from the theme's window color and follow theme changes;
-    // otherwise a stale slab shows through under the dark theme. Take the color
-    // from the theme model, not m_mainWindow->palette(): when themeChanged fires
-    // the freshly set application palette has not yet propagated to the window,
-    // so palette() would lag one switch behind.
-    auto paintBackdrop = [this](ThemeVariant variant)
+    // drive it from the theme's effective window color and follow theme
+    // changes; otherwise a stale slab shows through under the dark theme. Read
+    // the color the manager just applied, whether curated or native, rather
+    // than m_mainWindow->palette(), which lags a switch behind when themeChanged
+    // fires.
+    auto paintBackdrop = [this](ThemeVariant)
     {
-        ThemeColor const c = themePaletteFor(m_themeManager->platform(), variant).window;
-        m_mdiArea->setBackground(QColor(c.r, c.g, c.b));
+        m_mdiArea->setBackground(m_themeManager->windowColor());
     };
     paintBackdrop(m_themeManager->currentVariant());
     QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_mdiArea, paintBackdrop);
@@ -506,6 +505,66 @@ void RManager::setUpThemeMenuItems() const
         });
 
     if (QAction * current = m_menuModel->action("theme.mode_" + m_themeManager->modeId()))
+    {
+        current->setChecked(true);
+    }
+
+    setUpThemeLookItems();
+}
+
+void RManager::setUpThemeLookItems() const
+{
+    struct LookItem
+    {
+        ThemeLook look;
+        QString tip;
+    };
+    std::vector<LookItem> const items = {
+        {ThemeLook::System, QString("Show the platform's own colors through the native style")},
+        {ThemeLook::Curated, QString("Apply the curated palette for a look that travels between machines")},
+    };
+
+    // Showing the platform's own colors needs a native style to show them
+    // through; where there is none the choice is greyed and the curated look
+    // stands alone.
+    ThemeCapabilities const caps = m_themeManager->capabilities();
+    auto honored = [&caps](ThemeLook look)
+    { return look == ThemeLook::Curated || caps.has_native_style; };
+
+    auto * lookGroup = m_menuModel->group("theme.look");
+    int weight = 110;
+    for (auto const & item : items)
+    {
+        ThemeLook const look = item.look;
+        bool const enabled = honored(look);
+        QString const tip = enabled
+                                ? item.tip
+                                : item.tip + QString(" (not available on this platform)");
+        auto * action = new RAction(
+            QString(themeLookLabel(look)), tip, [this, look]()
+            { m_themeManager->setLook(look); },
+            m_menuModel);
+        action->setObjectName(QString("theme.look_") + themeLookId(look));
+        action->setCheckable(true);
+        action->setEnabled(enabled);
+        lookGroup->addAction(action);
+        m_menuModel->place("View/Theme", action, weight);
+        weight += 10;
+    }
+
+    QObject::connect(
+        m_themeManager,
+        &RThemeManager::themeChanged,
+        m_menuModel,
+        [this](ThemeVariant)
+        {
+            if (QAction * current = m_menuModel->action("theme.look_" + m_themeManager->lookId()))
+            {
+                current->setChecked(true);
+            }
+        });
+
+    if (QAction * current = m_menuModel->action("theme.look_" + m_themeManager->lookId()))
     {
         current->setChecked(true);
     }
