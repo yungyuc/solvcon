@@ -112,6 +112,7 @@ private:
     void applyDrawTool();
 
     void setUpEditMenuItems() const;
+    void setUpThemeMenuItems() const;
     void setUpCameraControllersMenuItems() const;
     void setUpCameraMovementMenuItems() const;
 

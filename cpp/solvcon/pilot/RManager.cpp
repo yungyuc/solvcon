@@ -18,6 +18,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QActionGroup>
+#include <QColor>
 #include <QKeySequence>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -340,6 +341,20 @@ void RManager::setUpCentral()
     // single Painter toolbox always drives whichever canvas has focus.
     QObject::connect(m_mdiArea, &QMdiArea::subWindowActivated, m_mdiArea, [this](QMdiSubWindow *)
                      { applyDrawTool(); });
+
+    // The MDI area paints its own backdrop instead of reading the palette, so
+    // drive it from the theme's window color and follow theme changes;
+    // otherwise a stale slab shows through under the dark theme. Take the color
+    // from the theme model, not m_mainWindow->palette(): when themeChanged fires
+    // the freshly set application palette has not yet propagated to the window,
+    // so palette() would lag one switch behind.
+    auto paintBackdrop = [this](ThemeVariant variant)
+    {
+        ThemeColor const c = themePaletteFor(m_themeManager->platform(), variant).window;
+        m_mdiArea->setBackground(QColor(c.r, c.g, c.b));
+    };
+    paintBackdrop(m_themeManager->currentVariant());
+    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_mdiArea, paintBackdrop);
 }
 
 void RManager::primeRhiComposition()
@@ -380,6 +395,7 @@ void RManager::setUpMenu()
     m_menuModel->menu("Window", 70);
 
     setUpEditMenuItems();
+    setUpThemeMenuItems();
     // Code for controlling camera is not exposed to Python yet.
     setUpCameraControllersMenuItems();
     setUpCameraMovementMenuItems();
@@ -408,6 +424,81 @@ void RManager::setUpEditMenuItems() const
 
     m_menuModel->place("Edit", undo_action, 10);
     m_menuModel->place("Edit", redo_action, 20);
+}
+
+void RManager::setUpThemeMenuItems() const
+{
+    struct ThemeItem
+    {
+        ThemeMode mode;
+        QString tip;
+    };
+    std::vector<ThemeItem> const items = {
+        {ThemeMode::System, QString("Follow the operating system light or dark setting")},
+        {ThemeMode::Light, QString("Use the light palette")},
+        {ThemeMode::Dark, QString("Use the dark palette")},
+    };
+
+    // A mode the running platform cannot honor is shown greyed rather than
+    // hidden, so the interface never offers a switch that does nothing and the
+    // reason stays visible.
+    ThemeCapabilities const caps = m_themeManager->capabilities();
+    auto honored = [&caps](ThemeMode mode)
+    {
+        switch (mode)
+        {
+        case ThemeMode::System:
+            return caps.can_follow_system;
+        case ThemeMode::Light:
+        case ThemeMode::Dark:
+        default:
+            return caps.can_force_variant;
+        }
+    };
+
+    // The group owns the exclusive mode, held by the model under a group id so
+    // Python can query the checked action, mirroring the camera controllers.
+    auto * themeGroup = m_menuModel->group("theme.mode");
+    int weight = 10;
+    for (auto const & item : items)
+    {
+        ThemeMode const mode = item.mode;
+        bool const enabled = honored(mode);
+        QString const tip = enabled
+                                ? item.tip
+                                : item.tip + QString(" (not available on this platform)");
+        auto * action = new RAction(
+            QString(themeModeLabel(mode)), tip, [this, mode]()
+            { m_themeManager->setMode(mode); },
+            m_menuModel);
+        action->setObjectName(QString("theme.mode_") + themeModeId(mode));
+        action->setCheckable(true);
+        action->setEnabled(enabled);
+        themeGroup->addAction(action);
+        m_menuModel->place("View/Theme", action, weight);
+        weight += 10;
+    }
+
+    // Keep the radio check in step with the manager whichever way the theme
+    // moves: a menu click, a console set_theme(), or an operating-system change
+    // while following the system. Parent the connection to the model so it dies
+    // with the menu.
+    QObject::connect(
+        m_themeManager,
+        &RThemeManager::themeChanged,
+        m_menuModel,
+        [this](ThemeVariant)
+        {
+            if (QAction * current = m_menuModel->action("theme.mode_" + m_themeManager->modeId()))
+            {
+                current->setChecked(true);
+            }
+        });
+
+    if (QAction * current = m_menuModel->action("theme.mode_" + m_themeManager->modeId()))
+    {
+        current->setChecked(true);
+    }
 }
 
 void RManager::setUpCameraControllersMenuItems() const
