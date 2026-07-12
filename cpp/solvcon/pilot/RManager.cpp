@@ -329,6 +329,16 @@ void RManager::setUpConsole()
     m_pycon = new RPythonConsoleDockWidget(QString("Console"), m_mainWindow);
     m_pycon->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_mainWindow->addDockWidget(Qt::BottomDockWidgetArea, m_pycon);
+
+    // The console's syntax colors and bracket marker are not QPalette roles, so
+    // drive them from the theme directly. The theme was applied before this
+    // widget existed, so seed it now, then follow later switches.
+    auto applyConsoleTheme = [this](ThemeVariant variant)
+    {
+        m_pycon->applyTheme(syntaxColorsFor(m_themeManager->platform(), variant));
+    };
+    applyConsoleTheme(m_themeManager->currentVariant());
+    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_pycon, applyConsoleTheme);
 }
 
 void RManager::setUpCentral()
