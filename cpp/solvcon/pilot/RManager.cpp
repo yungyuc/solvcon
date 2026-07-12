@@ -12,6 +12,7 @@
 #include <solvcon/pilot/DrawTool.hpp>
 #include <solvcon/pilot/RAction.hpp>
 #include <solvcon/pilot/RMenuModel.hpp>
+#include <solvcon/pilot/RThemeManager.hpp>
 #include <Qt>
 #include <QMenuBar>
 #include <QMenu>
@@ -50,6 +51,10 @@ RManager::RManager()
 
     m_mainWindow = new QMainWindow;
     m_mainWindow->setWindowIcon(QIcon(QString(":/icon.ico")));
+    // The theme controller is parented to the manager, not the window, so its
+    // OS color-scheme connection survives a window rebuild. The palette is
+    // applied in setUp(), before any widget is created.
+    m_themeManager = new RThemeManager(this);
     // Do not call setUp() from the constructor.  Windows may crash with
     // "exited with code -1073740791".  The reason is not yet clarified.
 }
@@ -58,6 +63,17 @@ RManager & RManager::setUp()
 {
     if (!m_already_setup)
     {
+        // A prior reset() tears the manager down with the application it drove;
+        // rebuild it here so a fresh setUp on the singleton starts clean.
+        if (m_themeManager == nullptr)
+        {
+            m_themeManager = new RThemeManager(this);
+        }
+        // Paint the style and palette before any widget exists, so every widget
+        // below is created already themed, and let native chrome follow the
+        // main window.
+        this->m_themeManager->setWindow(m_mainWindow);
+        this->m_themeManager->apply();
         this->setUpConsole();
         this->setUpCentral();
         this->primeRhiComposition();
@@ -80,6 +96,11 @@ void RManager::reset()
     {
         m_menuModel->clear();
     }
+    // Tear the theme controller down before the application it connected to, so
+    // its OS color-scheme connection unwinds while that application is alive. It
+    // is parented to this long-lived singleton, so it must be deleted by hand.
+    delete m_themeManager;
+    m_themeManager = nullptr;
     m_owned_core.reset(); // Deletes the application only if the pilot made it.
     m_core = nullptr;
     m_mainWindow = nullptr;
