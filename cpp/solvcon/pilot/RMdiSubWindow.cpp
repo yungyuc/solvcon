@@ -27,10 +27,14 @@ namespace
 constexpr int GRIP_SIZE = 16;
 
 /**
- * A lower-left resize handle for a QMdiSubWindow. It drags the subwindow's
- * left and bottom edges while the top and right stay put, clamped to the
- * subwindow's size hints. Unlike QSizeGrip, QMdiSubWindow does not adopt or
- * reposition it, so it can live in the lower-left corner.
+ * A lower-right resize handle for a QMdiSubWindow. It drags the subwindow's
+ * right and bottom edges while the top and left stay put, clamped to the
+ * subwindow's size hints.
+ *
+ * QMdiSubWindow adopts any QSizeGrip child and reserves layout space for it,
+ * which resizes the hosted canvas and corrupts its rendered output. This
+ * plain widget is left alone, so it resizes the frame without disturbing the
+ * content.
  */
 class ResizeCorner
     : public QWidget
@@ -57,7 +61,7 @@ ResizeCorner::ResizeCorner(QMdiSubWindow * target)
     , m_target(target)
 {
     setFixedSize(GRIP_SIZE, GRIP_SIZE);
-    setCursor(Qt::SizeBDiagCursor);
+    setCursor(Qt::SizeFDiagCursor);
     setToolTip(QMdiSubWindow::tr("Drag to resize"));
 }
 
@@ -69,11 +73,12 @@ void ResizeCorner::paintEvent(QPaintEvent *)
     ink.setAlpha(160);
     painter.setPen(QPen(ink, 1.0));
 
+    int const w = width();
     int const h = height();
     for (int i = 1; i <= 3; ++i)
     {
         int const off = i * 4;
-        painter.drawLine(0, h - off, off, h);
+        painter.drawLine(w - off, h, w, h - off);
     }
 }
 
@@ -101,10 +106,10 @@ void ResizeCorner::mouseMoveEvent(QMouseEvent * event)
     QSize const lo = m_target->minimumSizeHint().expandedTo(m_target->minimumSize());
     QSize const hi = m_target->maximumSize();
 
-    int const width = std::clamp(m_start.width() - delta.x(), lo.width(), hi.width());
+    int const width = std::clamp(m_start.width() + delta.x(), lo.width(), hi.width());
     int const height = std::clamp(m_start.height() + delta.y(), lo.height(), hi.height());
-    // Keep the top-right corner fixed; only the left and bottom edges move.
-    m_target->setGeometry(m_start.right() - width + 1, m_start.top(), width, height);
+    // Keep the top-left corner fixed; only the right and bottom edges move.
+    m_target->setGeometry(m_start.left(), m_start.top(), width, height);
     event->accept();
 }
 
@@ -129,7 +134,8 @@ void RMdiSubWindow::positionGrip()
     m_grip->setVisible(!isMaximized() && !isShaded());
 
     QRect const area = contentsRect();
-    m_grip->move(area.left(), area.bottom() - m_grip->height() + 1);
+    m_grip->move(area.right() - m_grip->width() + 1,
+                 area.bottom() - m_grip->height() + 1);
     // setWidget() adds the content widget after the grip, so restore the grip
     // to the top of the stack or the content would paint over it.
     m_grip->raise();

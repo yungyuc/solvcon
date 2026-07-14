@@ -80,7 +80,7 @@ public:
     QMdiArea * mdiArea() { return m_mdiArea; }
 
     /// Wrap @p widget in an RMdiSubWindow, add it to the MDI area, and give
-    /// it focus. The subwindow carries a lower-left size grip for resizing.
+    /// it focus. The subwindow carries a lower-right size grip for resizing.
     QMdiSubWindow * addSubWindow(QWidget * widget);
 
     /// The live model of the menu bar, addressable by path from Python.

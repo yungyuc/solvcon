@@ -22,14 +22,15 @@ namespace solvcon
 {
 
 /**
- * QMdiSubWindow with a size grip pinned to its lower-left corner. The bare
+ * QMdiSubWindow with a size grip pinned to its lower-right corner. The bare
  * frame border is only a few pixels wide and hard to grab, especially on
- * macOS where the lower-left corner offers no visible handle. The grip gives
- * a clear, large target that resizes the subwindow directly.
+ * macOS where the corner offers no visible handle. The grip gives a clear,
+ * large target that resizes the subwindow directly.
  *
  * A plain QSizeGrip is not used: QMdiSubWindow adopts any QSizeGrip child and
- * forces it to the lower-right, so the grip is a custom widget the subwindow
- * leaves alone.
+ * reserves layout space for it, which resizes the hosted canvas and corrupts
+ * its rendered output. The custom grip is a widget the subwindow leaves
+ * alone.
  *
  * @ingroup group_domain
  */
@@ -48,7 +49,7 @@ protected:
 
 private:
 
-    /// Pin the grip to the lower-left corner of the frame's content area.
+    /// Pin the grip to the lower-right corner of the frame's content area.
     void positionGrip();
 
     QWidget * m_grip;

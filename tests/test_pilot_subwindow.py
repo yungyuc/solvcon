@@ -2,7 +2,7 @@
 # BSD 3-Clause License, see COPYING
 
 """
-Tests for the lower-left size grip that RMdiSubWindow adds to each MDI
+Tests for the lower-right size grip that RMdiSubWindow adds to each MDI
 subwindow, so the frame is easy to resize.
 """
 
@@ -19,11 +19,12 @@ except ImportError:
 
 def _find_grip(subwin):
     """The subwindow's resize grip: the fixed 16x16 child that carries the
-    lower-left diagonal resize cursor. It is a plain widget rather than a
-    QSizeGrip, which QMdiSubWindow would seize and pin to the lower-right."""
+    lower-right diagonal resize cursor. It is a plain widget rather than a
+    QSizeGrip, which QMdiSubWindow would seize, reserving layout space that
+    corrupts the hosted canvas."""
     for child in subwin.findChildren(QtWidgets.QWidget):
         if (child.size() == QtCore.QSize(16, 16)
-                and child.cursor().shape() == QtCore.Qt.SizeBDiagCursor):
+                and child.cursor().shape() == QtCore.Qt.SizeFDiagCursor):
             return child
     return None
 
@@ -51,7 +52,8 @@ def _drag(widget, dx, dy):
 
 @unittest.skipUnless(solvcon.HAS_PILOT, "Qt pilot is not built")
 class SubWindowResizeGripTC(unittest.TestCase):
-    """The size grip is present, anchored lower-left, and resizes the frame."""
+    """The size grip is present, anchored lower-right, and resizes the
+    frame."""
 
     @classmethod
     def setUpClass(cls):
@@ -69,22 +71,21 @@ class SubWindowResizeGripTC(unittest.TestCase):
     def test_grip_exists(self):
         self.assertIsNotNone(_find_grip(self.sub))
 
-    def test_grip_sits_in_the_lower_left(self):
+    def test_grip_sits_in_the_lower_right(self):
         grip = _find_grip(self.sub)
         area = self.sub.contentsRect()
-        self.assertEqual(grip.geometry().left(), area.left())
+        self.assertEqual(grip.geometry().right(), area.right())
         self.assertEqual(grip.geometry().bottom(), area.bottom())
 
     def test_dragging_the_grip_resizes_the_frame(self):
         grip = _find_grip(self.sub)
         start = self.sub.geometry()
-        _drag(grip, -40, 50)
+        _drag(grip, 40, 50)
         end = self.sub.geometry()
         self.assertEqual(end.width(), start.width() + 40)
         self.assertEqual(end.height(), start.height() + 50)
-        # The lower-left grip drags the left and bottom edges; the top and
-        # right edges stay put.
-        self.assertEqual(end.top(), start.top())
-        self.assertEqual(end.right(), start.right())
+        # The lower-right grip drags the right and bottom edges; the top-left
+        # corner stays put.
+        self.assertEqual(end.topLeft(), start.topLeft())
 
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4 tw=79:
