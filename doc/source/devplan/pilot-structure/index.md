@@ -105,7 +105,7 @@ cpp/solvcon/pilot/
     RMaterial.{hpp,cpp}
     RColormap.{hpp,cpp}
     RScalarBar.{hpp,cpp}
-  canvas2d/
+  canvas/
     R2DWidget.{hpp,cpp}
     RWorldRenderer2d.{hpp,cpp}
     DrawTool.{hpp,cpp}
@@ -137,7 +137,7 @@ Rationale for the boundaries:
   the material, colormap, and scalar bar are the assets those primitives
   render with. Vector visuals and 3D boundary surfaces from the open issues
   land here.
-- **`canvas2d/`** is the 2D drawing surface that SVG export and the native XY
+- **`canvas/`** is the 2D drawing surface that SVG export and the native XY
   plot extend.
 - **`theme/`** and **`console/`** are the two closed islands identified
   above, moved wholesale.
@@ -197,7 +197,7 @@ Rationale:
 | app shell | `app/` | `app/` |
 | 3D scene | `scene/` | (in `app/` + `mesh/`) |
 | drawables | `drawable/` | (in `mesh/`) |
-| 2D canvas | `canvas2d/` | `canvas/` |
+| 2D canvas | `canvas/` | `canvas/` |
 | theme | `theme/` | `app/_theme` |
 | Python console | `console/` | (C++ only) |
 | 1D solvers | (Python only) | `onedim/` |
@@ -250,7 +250,7 @@ For each subpackage:
 A safe order is: C++ `common/` first (proves the include-path mechanics),
 then the closed islands (`theme/`, `console/`) which have the fewest external
 edges, then `scene/` and `drawable/` together (they are coupled), then
-`canvas2d/` and `app/`. The Python side follows the same island-first idea:
+`canvas/` and `app/`. The Python side follows the same island-first idea:
 `onedim/` and `agent/` first (nearly self-contained), then `canvas/`,
 `mesh/`, `panel/`, and `app/` last (it holds the hub).
 
@@ -285,11 +285,14 @@ edges, then `scene/` and `drawable/` together (they are coupled), then
 2. **`app/` versus `panel/` on the Python side.** `_profiling`,
    `_tree_panel`, and `_window_manager` are docks; is `panel/` the right name,
    or should they sit in `app/` as application chrome?
-3. **Naming.** `canvas2d/` in C++ versus `canvas/` in Python: keep the `2d`
-   suffix on the C++ side (to pair with a future `scene` = 3D), or drop it for
-   symmetry?
-4. **`common/` scope.** Should `render_misc` live in `common/`, or in
+3. **`common/` scope.** Should `render_misc` live in `common/`, or in
    `drawable/` next to its callers?
+
+## Decisions from review
+
+- **Canvas naming.** The C++ 2D directory is named `canvas/`, not
+  `canvas2d/`, matching the Python side. The scene directory already carries
+  the 3D meaning, so no `2d` suffix is needed to disambiguate.
 
 ## Delivery status
 
@@ -305,5 +308,7 @@ edges, then `scene/` and `drawable/` together (they are coupled), then
   structure. Push to the fork and open a pull request for review." Drove the
   code survey (flat C++ and Python inventories, the include-coupling scan),
   the submodule proposal above, and this page.
+- Review on the pull request: "Name it just `canvas`" on the C++ 2D
+  directory. Renamed `canvas2d/` to `canvas/` and recorded the decision.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
