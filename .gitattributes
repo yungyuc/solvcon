@@ -1,8 +1,4 @@
-# Keep shell scripts LF-only on every platform.  The agent tooling under
-# .claude/ and .cursor/ (hooks, statusline) is bash, and a Windows checkout
-# with the default core.autocrlf=true otherwise rewrites it to CRLF, which
-# breaks the `#!/bin/bash` shebang and heredoc/case parsing on stricter
-# shells.  This also matches the project's Unix-LF source rule (see STYLE.md).
+# Shell/agent tooling stays LF regardless of core.autocrlf.
 *.sh text eol=lf
 .claude/hooks/* text eol=lf
 .claude/statusline.sh text eol=lf
