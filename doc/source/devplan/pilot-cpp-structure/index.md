@@ -55,7 +55,7 @@ cpp/solvcon/pilot/
     RAction.{hpp,cpp}
     RShortcutManager.{hpp,cpp}
     keymap.{hpp,cpp}            Qt-free keymap core
-  visualization/
+  visual/
     RScene.{hpp,cpp}
     RDomainWidget.{hpp,cpp}
     RCameraController.{hpp,cpp}
@@ -100,7 +100,7 @@ Rationale for the boundaries:
   land (`RShortcutManager` alongside `keymap`), which is exactly the growth
   this neighborhood is meant to absorb. Keeping the Qt-free keymap core here
   puts its seam next to the menu and shortcuts it drives.
-- **`visualization/`** is the 2D and 3D visualization: the RHI widget, the
+- **`visual/`** is the 2D and 3D visualization: the RHI widget, the
   scene graph, the camera, the frame, and the axis gizmo, together with
   everything the scene draws. `RDrawable` is the base for the visual
   primitives, and the material, colormap, and scalar bar are the assets they
@@ -121,7 +121,7 @@ to find there.
 | --- | --- |
 | shared base | `common/` |
 | app shell | `app/` |
-| visualization | `visualization/` |
+| visual | `visual/` |
 | 2D canvas | `canvas/` |
 | theme | `theme/` |
 | Python console | `console/` |
@@ -145,7 +145,7 @@ The mechanics for each step are in the Implementation section.
    edges, moved wholesale.
    *Estimated diff: ~55 lines across the 16 moved files, their include sites,
    and the CMake lists.*
-4. **`visualization/`.** The scene and its drawables move together: `RDrawable`
+4. **`visual/`.** The scene and its drawables move together: `RDrawable`
    is the base the scene draws, and the two are tightly coupled.
    *Estimated diff: ~90 lines, the largest step, covering 30 moved files, their
    heavy cross-includes, and about 30 CMake path edits.*
@@ -191,7 +191,7 @@ For each subdirectory:
 1. `git mv` the `.hpp`/`.cpp` pair into the new directory.
 2. Update the include paths. Includes are angle-bracket and rooted at the
    package (`#include <solvcon/pilot/RScene.hpp>` becomes
-   `#include <solvcon/pilot/visualization/RScene.hpp>`), so every include site
+   `#include <solvcon/pilot/visual/RScene.hpp>`), so every include site
    across the pilot, the binary, and the tests updates in lockstep.
 3. Regroup the moved files in `cpp/solvcon/pilot/CMakeLists.txt`. The
    `SOLVCON_PILOT_PYMODHEADERS` and `SOLVCON_PILOT_PYMODSOURCES` lists stay
@@ -228,15 +228,15 @@ updates its includes but does not move.
 ## Open questions for review
 
 1. **`common/` scope.** Should `render_misc` live in `common/`, or in
-   `visualization/` next to its callers?
+   `visual/` next to its callers?
 
 ## Decisions from review
 
 - **Canvas naming.** The 2D directory is named `canvas/`, not `canvas2d/`. The
-  `visualization/` directory already carries the general drawing meaning, so no
+  `visual/` directory already carries the general drawing meaning, so no
   `2d` suffix is needed to disambiguate.
 - **Visualization grouping.** The scene graph and the drawable primitives share
-  one `visualization/` directory rather than separate `scene/` and `drawable/`
+  one `visual/` directory rather than separate `scene/` and `drawable/`
   directories, since both serve the 2D and 3D visualization and are tightly
   coupled.
 - **Document order.** The proposed structure leads, the planned steps follow,
@@ -262,8 +262,10 @@ updates its includes but does not move.
 - "Focus this plan on the C++ core." Scoped the page to `cpp/solvcon/pilot/`.
 - Review on the pull request: "`scene` and `drawable` are both for the 2/3D
   visualization. Combine and name as `visualization`." Merged the two into a
-  single `visualization/` directory and recorded the decision.
+  single directory for the 2D and 3D visualization.
 - "Add a diff-line estimate in each of the steps." Added an estimated diff
   size to every planned step.
+- "visualization is too long. make it visual." Shortened the merged directory
+  name to `visual/`.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
