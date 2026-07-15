@@ -34,45 +34,13 @@ neighborhoods, so every new feature widens the same pile instead of deepening
 a clear module. The goal of this plan is to name the neighborhoods and give
 each one a directory before the next wave of features arrives.
 
-## Where the code lives today
-
-### C++ core: `cpp/solvcon/pilot/`
-
-About forty translation units plus a `shaders/` directory, all flat. A quick
-scan of the intra-pilot includes shows the coupling is already clustered even
-though the files are not:
-
-- `common_detail.hpp` is the shared base, pulled in by roughly every source
-  (about 25 include sites). It is a genuine common header. `platform.hpp`,
-  the platform-id enum shared by the keymap and the theme, is a second one.
-- `RDrawable.hpp` roots the visual primitives (about 10 include sites): the
-  boundary, feature edges, field, scalar field, segments, and normals all
-  derive from or lean on it.
-- The theme files (`theme`, `RThemeManager`, `RThemeBackend`, and the three
-  per-platform backends) form a closed island.
-- The Python-console files (`RPythonConsoleDockWidget`,
-  `RPythonConsoleHistory`, `RPythonSyntaxHighlighter`, `RPythonSyntaxRules`)
-  form another closed island.
-- The 2D canvas (`R2DWidget`, `RWorldRenderer2d`, `DrawTool`, `RTextOverlay`)
-  is a third.
-- `RManager` and `RDomainWidget` are the hubs: they include the most siblings
-  because they wire the app shell to the scene and the docks.
-
-The clusters exist. They are simply not reflected in the directory tree.
-
-### Python package: `solvcon/pilot/`
-
-About twenty modules, flat, dominated by `_base_app.py` (over 1000 lines).
-The package entry (`__init__.py`) imports `_pilot_core` first for the C++
-extension, then the GUI modules behind the `enable` flag. `airfoil/` is
-already a subpackage and is the model this plan generalizes.
-
 ## Proposed structure
 
 The proposal groups files by the neighborhood they serve. Names are
 deliberately parallel between C++ and Python where the concept is shared
 (scene, canvas, theme, console, app), so a contributor who learns one side
-can navigate the other.
+can navigate the other. The include-coupling evidence behind these boundaries
+is in "Where the code lives today" below.
 
 ### C++ target tree
 
@@ -146,8 +114,8 @@ Rationale for the boundaries:
   land here.
 - **`canvas/`** is the 2D drawing surface that SVG export and the native XY
   plot extend.
-- **`theme/`** and **`console/`** are the two closed islands identified
-  above, moved wholesale.
+- **`theme/`** and **`console/`** are self-contained islands, each a closed
+  set of files with no scene or drawable edges, moved wholesale.
 
 `pilot.hpp` and `wrap_pilot.*` stay at the root: the umbrella header and the
 single binding translation unit are the package's front door and are easiest
@@ -211,11 +179,69 @@ Rationale:
 | docks / panels | (in `app/`) | `panel/` |
 | agent | (Python only) | `agent/` |
 
+## Planned steps
+
+The move is carried out in small, independently reviewable steps, each one
+keeping the tree buildable and the public surface unchanged. The order is
+island-first: the least-connected neighborhoods move before the hubs, so the
+risky wiring changes land last against a tree that is already mostly sorted.
+The per-language mechanics for each step are in the Implementation section.
+
+1. Land this development plan (this page).
+2. **C++ `common/`.** Move `common_detail.hpp`, `platform.hpp`, and
+   `render_misc`. This is the most-included header set, so it exercises the
+   include-path mechanics against nearly every file first.
+3. **C++ `theme/` and `console/`.** The two self-contained islands, fewest
+   external edges, moved wholesale.
+4. **C++ `scene/` and `drawable/`.** Moved together because they are coupled:
+   `RDrawable` is the base the scene draws.
+5. **C++ `canvas/` and `app/`.** `app/` moves last on the C++ side because it
+   holds the `RManager` hub plus the menu, action, keymap, and shortcut
+   manager.
+6. **Python `onedim/` and `agent/`.** Nearly self-contained, moved first.
+7. **Python `canvas/`, `mesh/`, and `panel/`.**
+8. **Python `app/`.** Last, because it holds `_base_app` and the hub wiring;
+   `__init__.py` and `_pilot_core.py` stay at the package root throughout.
+9. **Final sweep.** Run `make lint`, rebuild the docs, and confirm each step's
+   diff is renames plus include or import edits only.
+
+## Where the code lives today
+
+### C++ core: `cpp/solvcon/pilot/`
+
+About forty translation units plus a `shaders/` directory, all flat. A quick
+scan of the intra-pilot includes shows the coupling is already clustered even
+though the files are not:
+
+- `common_detail.hpp` is the shared base, pulled in by roughly every source
+  (about 25 include sites). It is a genuine common header. `platform.hpp`,
+  the platform-id enum shared by the keymap and the theme, is a second one.
+- `RDrawable.hpp` roots the visual primitives (about 10 include sites): the
+  boundary, feature edges, field, scalar field, segments, and normals all
+  derive from or lean on it.
+- The theme files (`theme`, `RThemeManager`, `RThemeBackend`, and the three
+  per-platform backends) form a closed island.
+- The Python-console files (`RPythonConsoleDockWidget`,
+  `RPythonConsoleHistory`, `RPythonSyntaxHighlighter`, `RPythonSyntaxRules`)
+  form another closed island.
+- The 2D canvas (`R2DWidget`, `RWorldRenderer2d`, `DrawTool`, `RTextOverlay`)
+  is a third.
+- `RManager` and `RDomainWidget` are the hubs: they include the most siblings
+  because they wire the app shell to the scene and the docks.
+
+The clusters exist. They are simply not reflected in the directory tree.
+
+### Python package: `solvcon/pilot/`
+
+About twenty modules, flat, dominated by `_base_app.py` (over 1000 lines).
+The package entry (`__init__.py`) imports `_pilot_core` first for the C++
+extension, then the GUI modules behind the `enable` flag. `airfoil/` is
+already a subpackage and is the model this plan generalizes.
+
 ## Implementation
 
-The reorganization is mechanical but wide, so the plan is to move one
-neighborhood at a time, each as its own reviewable change, and keep the tree
-buildable after every step.
+The reorganization is mechanical but wide. The step sequence is in Planned
+steps above; the per-language mechanics for one neighborhood are below.
 
 ### C++ moves
 
@@ -251,15 +277,6 @@ For each subpackage:
 4. Update `setup.py` `packages` to list the new subpackages.
 5. Run the pilot tests (`make run_pilot_pytest`) and a headless smoke launch
    under `QT_QPA_PLATFORM=offscreen`.
-
-### Ordering
-
-A safe order is: C++ `common/` first (proves the include-path mechanics),
-then the closed islands (`theme/`, `console/`) which have the fewest external
-edges, then `scene/` and `drawable/` together (they are coupled), then
-`canvas/` and `app/`. The Python side follows the same island-first idea:
-`onedim/` and `agent/` first (nearly self-contained), then `canvas/`,
-`mesh/`, `panel/`, and `app/` last (it holds the hub).
 
 ## Verification
 
@@ -300,6 +317,9 @@ edges, then `scene/` and `drawable/` together (they are coupled), then
 - **Canvas naming.** The C++ 2D directory is named `canvas/`, not
   `canvas2d/`, matching the Python side. The scene directory already carries
   the 3D meaning, so no `2d` suffix is needed to disambiguate.
+- **Document order.** The proposed structure leads, the planned steps follow,
+  and the code survey that backs the boundaries comes after them, so a
+  reviewer sees the target and the roadmap before the supporting analysis.
 
 ## Delivery status
 
@@ -323,5 +343,9 @@ edges, then `scene/` and `drawable/` together (they are coupled), then
 - "Rebase to the latest upstream master and revise the doc." Rebased the
   branch and folded the new upstream files into the proposal:
   `RShortcutManager` into `app/` and `platform.hpp` into `common/`.
+- "Move the proposed structure after the problem, and add a planned-steps
+  section after it." Reordered the page so the proposal and the step roadmap
+  lead, with the code survey moved below them, and added the Planned steps
+  section.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
