@@ -21,7 +21,8 @@ console without reading each header.
 The growth is not slowing. Open pilot issues each add code that lands in the
 same flat directory:
 
-- keyboard-shortcut system (menus, actions, keymap),
+- keyboard-shortcut system (menus, actions, keymap), already landing as
+  `RShortcutManager`,
 - SVG export and a native XY plot (the 2D canvas),
 - window-geometry persistence and terminal I/O (the console and app shell),
 - cell picking, vector visuals, 3D boundary surfaces (the scene and its
@@ -42,7 +43,8 @@ scan of the intra-pilot includes shows the coupling is already clustered even
 though the files are not:
 
 - `common_detail.hpp` is the shared base, pulled in by roughly every source
-  (about 25 include sites). It is a genuine common header.
+  (about 25 include sites). It is a genuine common header. `platform.hpp`,
+  the platform-id enum shared by the keymap and the theme, is a second one.
 - `RDrawable.hpp` roots the visual primitives (about 10 include sites): the
   boundary, feature edges, field, scalar field, segments, and normals all
   derive from or lean on it.
@@ -82,11 +84,13 @@ cpp/solvcon/pilot/
   shaders/                      GLSL sources (unchanged)
   common/
     common_detail.hpp
+    platform.hpp                platform-id enum and per-platform records
     render_misc.{hpp,cpp}
   app/
     RManager.{hpp,cpp}          top-level window hub
     RMenuModel.{hpp,cpp}
     RAction.{hpp,cpp}
+    RShortcutManager.{hpp,cpp}
     keymap.{hpp,cpp}            Qt-free keymap core
   scene/
     RScene.{hpp,cpp}
@@ -127,10 +131,13 @@ cpp/solvcon/pilot/
 Rationale for the boundaries:
 
 - **`common/`** holds what everyone includes. `common_detail.hpp` is already
-  the de-facto base; `render_misc` is small shared render plumbing.
-- **`app/`** is the shell: the window hub plus the menu, action, and keymap
-  machinery that the keyboard-shortcut work will grow. Keeping the keymap
-  core here keeps its Qt-free seam next to the menu it drives.
+  the de-facto base, and `platform.hpp` is shared by both the keymap and the
+  theme; `render_misc` is small shared render plumbing.
+- **`app/`** is the shell: the window hub plus the menu, action, keymap, and
+  shortcut-manager machinery. The keyboard-shortcut work has already begun to
+  land upstream (`RShortcutManager` alongside `keymap`), which is exactly the
+  growth this neighborhood is meant to absorb. Keeping the Qt-free keymap core
+  here puts its seam next to the menu and shortcuts it drives.
 - **`scene/`** is the 3D world: the RHI widget, the scene graph, the camera,
   the frame, and the axis gizmo.
 - **`drawable/`** is everything the scene draws. `RDrawable` is the base, and
@@ -296,9 +303,12 @@ edges, then `scene/` and `drawable/` together (they are coupled), then
 
 ## Delivery status
 
-- Branch: `plan/pilot-structure` on the personal fork.
+- Branch: `plan/pilot-structure` on the personal fork, rebased on the latest
+  upstream master.
 - Contents: this development-plan page only. No file moves yet; the moves
   begin once the submodule boundaries are agreed.
+- The proposal already accounts for the newest upstream additions
+  (`RShortcutManager` in `app/`, `platform.hpp` in `common/`).
 - CI: draft pull request opened on the fork for review.
 
 ## Appendix: chat history
@@ -310,5 +320,8 @@ edges, then `scene/` and `drawable/` together (they are coupled), then
   the submodule proposal above, and this page.
 - Review on the pull request: "Name it just `canvas`" on the C++ 2D
   directory. Renamed `canvas2d/` to `canvas/` and recorded the decision.
+- "Rebase to the latest upstream master and revise the doc." Rebased the
+  branch and folded the new upstream files into the proposal:
+  `RShortcutManager` into `app/` and `platform.hpp` into `common/`.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
