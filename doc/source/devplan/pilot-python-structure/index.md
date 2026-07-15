@@ -43,7 +43,7 @@ subpackage that already exists is the model this plan generalizes.
 solvcon/pilot/
   __init__.py                   package entry, re-exports (unchanged location)
   _pilot_core.py                C++ extension shim (unchanged location)
-  app/
+  base/
     _base_app.py
     _gui.py
     _gui_common.py
@@ -73,8 +73,9 @@ Rationale for the boundaries:
 - **`__init__.py`** and **`_pilot_core.py`** stay at the package root so the
   public import surface (`solvcon.pilot.enable`, `RDomainWidget`, ...) and the
   extension shim do not move.
-- **`app/`** is the application core: the oversized `_base_app.py`, the launch
-  and controller wiring in `_gui`, the shared GUI helpers, and the theme shim.
+- **`base/`** is the base application layer: the oversized `_base_app.py`, the
+  launch and controller wiring in `_gui`, the shared GUI helpers, and the theme
+  shim.
 - **`onedim/`** collects the 1D CESE demo solvers, a family with no business
   sitting beside the mesh or the canvas, and the place new demos land.
 - **`canvas/`** is the 2D drawing surface that SVG export extends.
@@ -88,7 +89,7 @@ Rationale for the boundaries:
 | Neighborhood | Module home |
 | --- | --- |
 | package entry and extension shim | root (`__init__`, `_pilot_core`) |
-| app shell | `app/` |
+| base application layer | `base/` |
 | 1D solvers | `onedim/` |
 | 2D canvas | `canvas/` |
 | mesh | `mesh/` |
@@ -105,12 +106,20 @@ risky import changes land last against a tree that is already mostly sorted.
 The mechanics for each step are in the Implementation section.
 
 1. Land this development plan (this page).
+   *Estimated diff: documentation only.*
 2. **`onedim/` and `agent/`.** Nearly self-contained, moved first.
+   *Estimated diff: ~35 lines: five moved modules, two new `__init__.py`
+   re-export files, their import sites, and two `setup.py` entries.*
 3. **`canvas/`, `mesh/`, and `panel/`.** The feature neighborhoods.
-4. **`app/`.** Last, because it holds `_base_app` and the hub wiring;
+   *Estimated diff: ~50 lines: seven moved modules, three new `__init__.py`
+   files, their import sites, and three `setup.py` entries.*
+4. **`base/`.** Last, because it holds `_base_app` and the hub wiring;
    `__init__.py` and `_pilot_core.py` stay at the package root throughout.
+   *Estimated diff: ~45 lines: four moved modules that are widely imported, one
+   new `__init__.py`, and the `setup.py` entry.*
 5. **Final sweep.** Run `make flake8` and the pilot tests, rebuild the docs,
    and confirm each step's diff is renames plus import edits only.
+   *Estimated diff: under 10 lines of import-order fixups.*
 
 ## Where the code lives today
 
@@ -172,14 +181,17 @@ For each subpackage:
 
 ## Open questions for review
 
-1. **`app/` versus `panel/`.** `_profiling`, `_tree_panel`, and
+1. **`base/` versus `panel/`.** `_profiling`, `_tree_panel`, and
    `_window_manager` are docks; is `panel/` the right name, or should they sit
-   in `app/` as application chrome?
+   in `base/`?
 2. **Theme placement.** `_theme` is a single small module. Does it belong in
-   `app/` as application chrome, or in its own `theme/` subpackage?
+   `base/`, or in its own `theme/` subpackage?
 
 ## Decisions from review
 
+- **Base naming.** The application-core subpackage is named `base/`, not
+  `app/`: the whole pilot is the app, so `base/` reads as the base layer the
+  feature neighborhoods build on.
 - **Document order.** The proposed structure leads, the planned steps follow,
   and the code survey that backs the boundaries comes after them, so a
   reviewer sees the target and the roadmap before the supporting analysis.
@@ -200,5 +212,10 @@ For each subpackage:
   proposal and the step roadmap lead, with the code survey below them.
 - "Focus this plan on the Python package." Scoped the page to
   `solvcon/pilot/`.
+- Review on the pull request: "Now everything is an app. Rename `app` to
+  `base`." Renamed the application-core subpackage from `app/` to `base/` and
+  recorded the decision.
+- "Add a diff-line estimate in each of the steps." Added an estimated diff
+  size to every planned step.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->

@@ -55,13 +55,12 @@ cpp/solvcon/pilot/
     RAction.{hpp,cpp}
     RShortcutManager.{hpp,cpp}
     keymap.{hpp,cpp}            Qt-free keymap core
-  scene/
+  visualization/
     RScene.{hpp,cpp}
     RDomainWidget.{hpp,cpp}
     RCameraController.{hpp,cpp}
     RMeshFrame.{hpp,cpp}
     RAxisGizmo.{hpp,cpp}
-  drawable/
     RDrawable.{hpp,cpp}         base for the visual primitives
     RBoundary.{hpp,cpp}
     RFeatureEdges.{hpp,cpp}
@@ -101,10 +100,10 @@ Rationale for the boundaries:
   land (`RShortcutManager` alongside `keymap`), which is exactly the growth
   this neighborhood is meant to absorb. Keeping the Qt-free keymap core here
   puts its seam next to the menu and shortcuts it drives.
-- **`scene/`** is the 3D world: the RHI widget, the scene graph, the camera,
-  the frame, and the axis gizmo.
-- **`drawable/`** is everything the scene draws. `RDrawable` is the base, and
-  the material, colormap, and scalar bar are the assets those primitives
+- **`visualization/`** is the 2D and 3D visualization: the RHI widget, the
+  scene graph, the camera, the frame, and the axis gizmo, together with
+  everything the scene draws. `RDrawable` is the base for the visual
+  primitives, and the material, colormap, and scalar bar are the assets they
   render with. Vector visuals and 3D boundary surfaces from the open issues
   land here.
 - **`canvas/`** is the 2D drawing surface that SVG export and the native XY
@@ -122,8 +121,7 @@ to find there.
 | --- | --- |
 | shared base | `common/` |
 | app shell | `app/` |
-| 3D scene | `scene/` |
-| drawables | `drawable/` |
+| visualization | `visualization/` |
 | 2D canvas | `canvas/` |
 | theme | `theme/` |
 | Python console | `console/` |
@@ -137,17 +135,27 @@ risky wiring changes land last against a tree that is already mostly sorted.
 The mechanics for each step are in the Implementation section.
 
 1. Land this development plan (this page).
+   *Estimated diff: documentation only.*
 2. **`common/`.** Move `common_detail.hpp`, `platform.hpp`, and `render_misc`.
    This is the most-included header set, so it exercises the include-path
    mechanics against nearly every file first.
+   *Estimated diff: ~40 lines, mostly include-path edits across about 31
+   files, plus four `CMakeLists.txt` entries.*
 3. **`theme/` and `console/`.** The two self-contained islands, fewest external
    edges, moved wholesale.
-4. **`scene/` and `drawable/`.** Moved together because they are coupled:
-   `RDrawable` is the base the scene draws.
+   *Estimated diff: ~55 lines across the 16 moved files, their include sites,
+   and the CMake lists.*
+4. **`visualization/`.** The scene and its drawables move together: `RDrawable`
+   is the base the scene draws, and the two are tightly coupled.
+   *Estimated diff: ~90 lines, the largest step, covering 30 moved files, their
+   heavy cross-includes, and about 30 CMake path edits.*
 5. **`canvas/` and `app/`.** `app/` moves last because it holds the `RManager`
    hub plus the menu, action, keymap, and shortcut manager.
+   *Estimated diff: ~55 lines across the 18 moved files, their include sites,
+   and the CMake lists.*
 6. **Final sweep.** Run `make lint`, rebuild the docs, and confirm each step's
    diff is renames plus include edits only.
+   *Estimated diff: under 10 lines of include-order fixups.*
 
 ## Where the code lives today
 
@@ -183,8 +191,8 @@ For each subdirectory:
 1. `git mv` the `.hpp`/`.cpp` pair into the new directory.
 2. Update the include paths. Includes are angle-bracket and rooted at the
    package (`#include <solvcon/pilot/RScene.hpp>` becomes
-   `#include <solvcon/pilot/scene/RScene.hpp>`), so every include site across
-   the pilot, the binary, and the tests updates in lockstep.
+   `#include <solvcon/pilot/visualization/RScene.hpp>`), so every include site
+   across the pilot, the binary, and the tests updates in lockstep.
 3. Regroup the moved files in `cpp/solvcon/pilot/CMakeLists.txt`. The
    `SOLVCON_PILOT_PYMODHEADERS` and `SOLVCON_PILOT_PYMODSOURCES` lists stay
    flat variables; only the paths inside them change. A per-subdirectory
@@ -219,17 +227,18 @@ updates its includes but does not move.
 
 ## Open questions for review
 
-1. **Depth.** Is one level of subdirectory the right amount, or should
-   `drawable/` nest under `scene/` (a `scene/drawable/`) to signal that
-   drawables only live inside a scene?
-2. **`common/` scope.** Should `render_misc` live in `common/`, or in
-   `drawable/` next to its callers?
+1. **`common/` scope.** Should `render_misc` live in `common/`, or in
+   `visualization/` next to its callers?
 
 ## Decisions from review
 
 - **Canvas naming.** The 2D directory is named `canvas/`, not `canvas2d/`. The
-  scene directory already carries the 3D meaning, so no `2d` suffix is needed
-  to disambiguate.
+  `visualization/` directory already carries the general drawing meaning, so no
+  `2d` suffix is needed to disambiguate.
+- **Visualization grouping.** The scene graph and the drawable primitives share
+  one `visualization/` directory rather than separate `scene/` and `drawable/`
+  directories, since both serve the 2D and 3D visualization and are tightly
+  coupled.
 - **Document order.** The proposed structure leads, the planned steps follow,
   and the code survey that backs the boundaries comes after them, so a
   reviewer sees the target and the roadmap before the supporting analysis.
@@ -251,5 +260,10 @@ updates its includes but does not move.
 - "Lead with the structure and the step roadmap." Reordered the page so the
   proposal and the step roadmap lead, with the code survey below them.
 - "Focus this plan on the C++ core." Scoped the page to `cpp/solvcon/pilot/`.
+- Review on the pull request: "`scene` and `drawable` are both for the 2/3D
+  visualization. Combine and name as `visualization`." Merged the two into a
+  single `visualization/` directory and recorded the decision.
+- "Add a diff-line estimate in each of the steps." Added an estimated diff
+  size to every planned step.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
