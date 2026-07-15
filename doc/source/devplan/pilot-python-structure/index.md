@@ -57,7 +57,7 @@ solvcon/pilot/
     _canvas_gui.py
     _painter_gui.py
     _svg_gui.py
-  mesh/
+  visual/
     _mesh.py
   panel/
     _tree_panel.py
@@ -79,7 +79,7 @@ Rationale for the boundaries:
 - **`onedim/`** collects the 1D CESE demo solvers, a family with no business
   sitting beside the mesh or the canvas, and the place new demos land.
 - **`canvas/`** is the 2D drawing surface that SVG export extends.
-- **`mesh/`** holds the mesh view and its helpers.
+- **`visual/`** holds the mesh view (`_mesh`) and its visualization helpers.
 - **`panel/`** holds the dock widgets: the entity tree, the window manager,
   and the profiling view.
 - **`agent/`** holds the controlling agent GUI.
@@ -92,7 +92,7 @@ Rationale for the boundaries:
 | base application layer | `base/` |
 | 1D solvers | `onedim/` |
 | 2D canvas | `canvas/` |
-| mesh | `mesh/` |
+| visual | `visual/` |
 | docks / panels | `panel/` |
 | agent | `agent/` |
 | airfoil | `airfoil/` (unchanged) |
@@ -110,7 +110,7 @@ The mechanics for each step are in the Implementation section.
 2. **`onedim/` and `agent/`.** Nearly self-contained, moved first.
    *Estimated diff: ~35 lines: five moved modules, two new `__init__.py`
    re-export files, their import sites, and two `setup.py` entries.*
-3. **`canvas/`, `mesh/`, and `panel/`.** The feature neighborhoods.
+3. **`canvas/`, `visual/`, and `panel/`.** The feature neighborhoods.
    *Estimated diff: ~50 lines: seven moved modules, three new `__init__.py`
    files, their import sites, and three `setup.py` entries.*
 4. **`base/`.** Last, because it holds `_base_app` and the hub wiring;
@@ -192,6 +192,8 @@ For each subpackage:
 - **Base naming.** The application-core subpackage is named `base/`, not
   `app/`: the whole pilot is the app, so `base/` reads as the base layer the
   feature neighborhoods build on.
+- **Visual directory.** The mesh view lives in a `visual/` directory rather
+  than a `mesh/` one; the module keeps its `_mesh` name inside it.
 - **Document order.** The proposed structure leads, the planned steps follow,
   and the code survey that backs the boundaries comes after them, so a
   reviewer sees the target and the roadmap before the supporting analysis.
@@ -217,5 +219,8 @@ For each subpackage:
   recorded the decision.
 - "Add a diff-line estimate in each of the steps." Added an estimated diff
   size to every planned step.
+- Review on the pull request: "Rename the directory as visual, but keep the
+  sub module name `_mesh`." Renamed the `mesh/` directory to `visual/`, leaving
+  the `_mesh` module name unchanged.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
