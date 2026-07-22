@@ -11,6 +11,7 @@
 
 #include <solvcon/pilot/DrawTool.hpp>
 #include <solvcon/pilot/RAction.hpp>
+#include <solvcon/pilot/RMdiSubWindow.hpp>
 #include <solvcon/pilot/RMenuModel.hpp>
 #include <solvcon/pilot/RShortcutManager.hpp>
 #include <solvcon/pilot/RThemeManager.hpp>
@@ -117,6 +118,24 @@ void RManager::reset()
 RManager::~RManager()
 {
     reset();
+}
+
+QMdiSubWindow * RManager::addSubWindow(QWidget * widget)
+{
+    if (m_mdiArea == nullptr)
+    {
+        return nullptr;
+    }
+
+    // Build the subwindow directly so it is an RMdiSubWindow rather than the
+    // plain QMdiSubWindow that QMdiArea would create for a bare widget.
+    auto * subwin = new RMdiSubWindow;
+    subwin->setWidget(widget);
+    subwin->setAttribute(Qt::WA_DeleteOnClose);
+    m_mdiArea->addSubWindow(subwin);
+    subwin->show();
+    m_mdiArea->setActiveSubWindow(subwin);
+    return subwin;
 }
 
 RDomainWidget * RManager::add3DWidget()

@@ -83,8 +83,9 @@ public:
 
     QMdiArea * mdiArea() { return m_mdiArea; }
 
-    template <typename... Args>
-    QMdiSubWindow * addSubWindow(Args &&... args);
+    /// Wrap @p widget in an RMdiSubWindow, add it to the MDI area, and give
+    /// it focus. The subwindow carries a lower-right size grip for resizing.
+    QMdiSubWindow * addSubWindow(QWidget * widget);
 
     /// The live model of the menu bar, addressable by path from Python.
     RMenuModel * menuModel() { return m_menuModel; }
@@ -181,19 +182,6 @@ private:
      */
     std::string m_draw_tool = default_draw_tool_name();
 }; /* end class RManager */
-
-template <typename... Args>
-QMdiSubWindow * RManager::addSubWindow(Args &&... args)
-{
-    QMdiSubWindow * subwin = nullptr;
-    if (m_mdiArea)
-    {
-        subwin = m_mdiArea->addSubWindow(std::forward<Args>(args)...);
-        subwin->show();
-        m_mdiArea->setActiveSubWindow(subwin);
-    }
-    return subwin;
-}
 
 } /* end namespace solvcon */
 
