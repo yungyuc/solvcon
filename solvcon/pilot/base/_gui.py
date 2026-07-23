@@ -28,6 +28,7 @@ if _pcore.enable:
     from ..panel import _profiling
     from ..agent import _agent_gui
     from . import _theme
+    from . import _window_state
     from ..panel import _window_manager
 
 __all__ = [  # noqa: F822
@@ -75,6 +76,7 @@ class _Controller(metaclass=_Singleton):
         self.agent = None
         self.theme_menu = None
         self.window_manager = None
+        self.window_state = None
 
     def __getattr__(self, name):
         return None if self._rmgr is None else getattr(self._rmgr, name)
@@ -125,6 +127,9 @@ class _Controller(metaclass=_Singleton):
         self.agent = _agent_gui.AgentPanel(mgr=self._rmgr)
         self.theme_menu = _theme.ThemeMenu(mgr=self._rmgr)
         self.window_manager = _window_manager.WindowManager(mgr=self._rmgr)
+        # Restore the saved window geometry last, so it overrides the launch
+        # default set by resize() above.
+        self.window_state = _window_state.WindowState(mgr=self._rmgr)
         self.populate_menu()
         self._seed_console_namespace()
         self._built = True
