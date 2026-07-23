@@ -151,6 +151,16 @@ class WindowLayoutTC(unittest.TestCase):
         """Fire the real freshness hook that refreshes the menu."""
         self.model.menu("Window").aboutToShow.emit()
 
+    def _layout_ids(self):
+        """Every static layout action the menu is expected to carry.
+
+        Not a class attribute: WindowManager is unbound when the GUI
+        imports fail, and a class-body reference would then break
+        collection of this skipped module.
+        """
+        return (WindowManager.TILE_ID, WindowManager.CASCADE_ID,
+                WindowManager.HORIZONTAL_ID, WindowManager.VERTICAL_ID)
+
     def test_layout_actions_precede_the_list(self):
         # The static layout section sits above the separator; the
         # dynamic list follows it.
@@ -158,21 +168,17 @@ class WindowLayoutTC(unittest.TestCase):
         names = [a.objectName() for a in acts]
         sep = [i for i, a in enumerate(acts) if a.isSeparator()]
         self.assertEqual(len(sep), 1)
-        self.assertLess(names.index(WindowManager.TILE_ID), sep[0])
-        self.assertLess(names.index(WindowManager.CASCADE_ID), sep[0])
+        for aid in self._layout_ids():
+            self.assertLess(names.index(aid), sep[0])
 
     def test_layout_actions_follow_open_windows(self):
         self._show()
-        self.assertFalse(self.model.action(WindowManager.TILE_ID)
-                         .isEnabled())
-        self.assertFalse(self.model.action(WindowManager.CASCADE_ID)
-                         .isEnabled())
+        for aid in self._layout_ids():
+            self.assertFalse(self.model.action(aid).isEnabled())
         self.mgr.add2DWidget()
         self._show()
-        self.assertTrue(self.model.action(WindowManager.TILE_ID)
-                        .isEnabled())
-        self.assertTrue(self.model.action(WindowManager.CASCADE_ID)
-                        .isEnabled())
+        for aid in self._layout_ids():
+            self.assertTrue(self.model.action(aid).isEnabled())
 
     def _stack(self):
         """Pile every sub-window onto one rectangle.
@@ -202,6 +208,41 @@ class WindowLayoutTC(unittest.TestCase):
         QtWidgets.QApplication.processEvents()
         one, two = [s.geometry() for s in self.area.subWindowList()]
         self.assertNotEqual(one.topLeft(), two.topLeft())
+
+    def test_horizontal_tiling_forms_a_single_row(self):
+        self.mgr.add2DWidget()
+        self.mgr.add3DWidget()
+        self._stack()
+        self.model.action(WindowManager.HORIZONTAL_ID).trigger()
+        QtWidgets.QApplication.processEvents()
+        one, two = [s.geometry() for s in self.area.subWindowList()]
+        self.assertFalse(one.intersects(two))
+        self.assertEqual(one.y(), two.y())
+        self.assertEqual(one.height(), two.height())
+        self.assertNotEqual(one.x(), two.x())
+
+    def test_vertical_tiling_forms_a_single_column(self):
+        self.mgr.add2DWidget()
+        self.mgr.add3DWidget()
+        self._stack()
+        self.model.action(WindowManager.VERTICAL_ID).trigger()
+        QtWidgets.QApplication.processEvents()
+        one, two = [s.geometry() for s in self.area.subWindowList()]
+        self.assertFalse(one.intersects(two))
+        self.assertEqual(one.x(), two.x())
+        self.assertEqual(one.width(), two.width())
+        self.assertNotEqual(one.y(), two.y())
+
+    def test_directional_tiling_restores_a_minimized_window(self):
+        self.mgr.add2DWidget()
+        self.mgr.add3DWidget()
+        minimized = self.area.subWindowList()[0]
+        minimized.showMinimized()
+        self.model.action(WindowManager.HORIZONTAL_ID).trigger()
+        QtWidgets.QApplication.processEvents()
+        self.assertFalse(minimized.isMinimized())
+        one, two = [s.geometry() for s in self.area.subWindowList()]
+        self.assertFalse(one.intersects(two))
 
 
 if __name__ == '__main__':
