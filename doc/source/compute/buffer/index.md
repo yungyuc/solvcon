@@ -50,6 +50,10 @@ Growable typed buffers collect elements one by one, in the spirit of
   `SimpleCollectorUint64`
 - `SimpleCollectorFloat32`, `SimpleCollectorFloat64`
 
+The extension module also registers `SimpleCollectorComplex64` and
+`SimpleCollectorComplex128`, but the top-level `solvcon` package does not
+export them; this document covers the exported set.
+
 ## Relation to Numpy
 
 The Python API of the SimpleArray family is designed against numpy, but not
@@ -70,8 +74,8 @@ numpy the desired behavior falls into three categories:
    convergence completes, the pages note where the current behavior still
    differs from the target.
 
-Throughout the subpages, each operation family is tagged with one of three
-parity labels:
+Throughout the subpages, each operation family with a numpy counterpart is
+tagged with one of three parity labels:
 
 - "matches numpy": the desired behavior is the numpy behavior; any observed
   difference is a defect.

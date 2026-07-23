@@ -80,10 +80,13 @@ buf = solvcon.ConcreteBuffer(array=ndarr)
 assert buf.nbytes == ndarr.nbytes
 ```
 
-The dtype and shape of the source array do not matter; the buffer covers its
-`nbytes` bytes and shares them zero-copy, so writing through one side is
-visible on the other.  The buffer holds a reference to the source array,
-tying the lifetime of the memory to the Python object.  The
+The dtype and shape of the source array do not matter, but the array must
+be contiguous; the buffer covers its `nbytes` bytes and shares them
+zero-copy, so writing through one side is visible on the other.  The
+constructor also accepts the optional `alignment` keyword, validated
+against the same set (0, 16, 32, or 64); no size-multiple check applies
+because nothing is allocated.  The buffer holds a reference to the source
+array, tying the lifetime of the memory to the Python object.  The
 `is_from_python` property reports the provenance: it is `True` for a buffer
 wrapping a numpy array and `False` for a buffer that allocated its own
 memory.
@@ -110,8 +113,10 @@ ep = solvcon.BufferExpander(buf)       # copy of a ConcreteBuffer
 The third form initializes size and capacity to the byte count of the given
 `ConcreteBuffer` and copies its content; the expander does not alias the
 source buffer, so later writes to the expander leave the source unchanged.
-All forms accept an optional `alignment` keyword with the same valid values
-as `ConcreteBuffer` (0, 16, 32, or 64).
+The sized and buffer-copying forms accept an optional `alignment` keyword
+with the same valid values as `ConcreteBuffer` (0, 16, 32, or 64); the
+empty form fixes the alignment at 0.  The read-only `alignment` property
+returns the value given at construction.
 
 ### Growing
 
@@ -147,7 +152,9 @@ whether the result shares memory with the expander:
 - `as_concrete(cap=0)` converts the expander in place.  The expander
   adopts a `ConcreteBuffer` as its storage and returns it; from then on the
   two objects share memory, so a write through one is visible through the
-  other.
+  other.  When the expander is not yet concrete, the adopted buffer holds
+  `max(cap, len(ep))` bytes; when it already is, `cap` is ignored and the
+  existing buffer is returned.
 
 `clone()` returns a new independent `BufferExpander` with a copy of the
 content.
