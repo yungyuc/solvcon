@@ -378,9 +378,10 @@ assert (ret.ndarray == np.argwhere(narr == 10)).all()
 The method is bound on every typed class and selects the nonzero
 elements, so the boolean array from a comparison is the intended,
 tested condition form: `sarr.eq(10).argwhere()` is the counterpart of
-`np.argwhere(narr == 10)`.  A later page on reductions, statistics,
-and searching covers the method beside `argmin` and `argmax`; this
-page fixes only its role as the index-selection half of comparison.
+`np.argwhere(narr == 10)`.
+{doc}`Reductions, Statistics, Sorting, and Matrices <reduce>` covers
+the method beside `argmin` and `argmax`; this page fixes only its
+role as the index-selection half of comparison.
 
 ### The `where` Method
 
