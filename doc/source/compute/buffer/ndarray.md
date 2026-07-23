@@ -35,10 +35,12 @@ assert ndarr[0, 0, 0] == 10
 
 The wrapper keeps the source memory alive.  When the source is an array
 that owns its memory, the wrapper holds a reference to it; when the source
-is a view, the wrapper walks the `base` chain of the view to the ndarray
-that owns the memory and holds a reference to that owner instead.  The
-wrapped memory therefore outlives the Python names of both the view and
-the owner:
+is a view, the wrapper walks the `base` chain of the view and holds the
+outermost ndarray of the chain.  When the chain ends at an ndarray that
+owns its memory, the held array is the memory owner; when the outermost
+ndarray is itself built over another exporter, the true owner stays alive
+transitively through the held ndarray.  Either way the wrapped memory
+outlives the Python names of both the view and the owner:
 
 ```python
 src = np.arange(24, dtype='float64').reshape((2, 3, 4))
@@ -54,8 +56,8 @@ reports `False` and detaches from the numpy source.
 
 ## Supported Source Layouts
 
-The wrap accepts any strided layout numpy can produce, not only
-C-contiguous blocks:
+The wrap accepts the strided layouts numpy produces over a non-empty
+block of elements, not only C-contiguous ones:
 
 - C-ordered (row-major) arrays.
 - Fortran-ordered (column-major) arrays.
@@ -75,30 +77,38 @@ view = ndarr[1:7:3, 6:2:-1, 3:9]
 sarr = solvcon.SimpleArrayFloat64(array=view)
 assert sarr.shape == (2, 4, 6)
 assert sarr[0, 0, 0] == view[0, 0, 0]
-assert sarr.nbytes == view.nbytes
+assert sarr.stride == (300, -10, 1)  # elements
+assert view.strides == (2400, -80, 8)  # numpy reports bytes
 ```
 
-The stride of the wrapper diverges from numpy in its unit: the `stride`
-property counts elements, where numpy `strides` counts bytes.  A reversed
-two-dimensional view shows the negative element counts directly:
-
-```python
-ndarr = np.arange(6, dtype='float64').reshape((2, 3))
-sarr = solvcon.SimpleArrayFloat64(array=ndarr[::-1, ::-1])
-assert sarr.stride == (-3, -1)
-assert ndarr[::-1, ::-1].strides == (-24, -8)
-```
+The wrapper records the stride of the view in elements, per the stride
+convention defined in {doc}`Construction and Data Types <construct>`,
+where numpy `strides` reports bytes; the last two lines above show the
+same view in both units.
 
 The `is_c_contiguous` and `is_f_contiguous` properties report the layout
-of the wrapped view, matching the numpy contiguity flags: a C-ordered
-source reports C-contiguous, a Fortran-ordered source reports
-F-contiguous, and a degenerate shape (a single row, column, or element,
-or an empty array) reports both as `True`.
+of the wrapped view, and a degenerate shape reports both as `True`, as
+defined in {doc}`Construction and Data Types <construct>`.  An empty
+shape whose dimensions are all degenerate, such as `(0,)` or `(0, 0)`,
+wraps the same way and also reports both flags as `True`.  An empty
+shape with a non-degenerate dimension does not wrap; see the rejection
+rules below.
 
 ## Rejection Rules
 
-The typed wrap validates the source and raises `RuntimeError` in three
-cases.  First, the dtype of the source must equal the element type of the
+The typed wrap validates the source before sharing its memory.  The
+source must be writable; a read-only array, including the views produced
+by `numpy.broadcast_to`, raises `ValueError`:
+
+```python
+ndarr = np.arange(6, dtype='float64')
+ndarr.setflags(write=False)
+solvcon.SimpleArrayFloat64(array=ndarr)
+# ValueError: array is not writeable
+```
+
+Beyond writability, the wrap raises `RuntimeError` in three cases.
+First, the dtype of the source must equal the element type of the
 class; no conversion is attempted:
 
 ```python
@@ -127,6 +137,22 @@ ndarr = np.ndarray((3,), dtype='int32', buffer=bytearray(range(32)),
 solvcon.SimpleArrayInt32(array=ndarr)
 # RuntimeError: NumPy data pointer is not aligned for item alignment 4
 ```
+
+A fourth rejection is a limitation of the current validation rather than
+a designed rule.  Numpy flags every empty array as both C- and
+F-contiguous, and the wrap forwards both flags to the constructor's
+contiguity check, which fails for an empty shape that mixes a zero-extent
+dimension with one of extent greater than one:
+
+```python
+solvcon.SimpleArrayFloat64(array=np.empty((0, 3)))
+# RuntimeError: SimpleArray: C contiguous stride must match shape and
+# end with 1
+```
+
+The transposed case, such as shape `(3, 0)`, fails the F-contiguity
+variant of the same check.  Only an empty shape whose dimensions are all
+degenerate, such as `(0,)` or `(0, 0)`, wraps successfully.
 
 These rules apply to the typed `array=` form.  The dtype-erased
 `SimpleArray` constructor infers the dtype from the source instead of
@@ -230,15 +256,15 @@ assert type(sarr[0]) is solvcon.complex128
 assert complex(sarr[1]) == 3 + 4j
 ```
 
-Each scalar type reports its numpy dtype through the `dtype()` static
-method: `solvcon.complex64.dtype()` equals `numpy.dtype('complex64')`
+Each scalar type reports its numpy dtype through the `dtype()` method
+on the class: `solvcon.complex64.dtype()` equals `numpy.dtype('complex64')`
 and likewise for `complex128`.  Wrapping a complex ndarray with the
 `array=` form follows the same rules as the other dtypes, including the
 exact-match dtype check: a `complex64` source wraps only into
 `SimpleArrayComplex64`, and passing it to `SimpleArrayComplex128` raises
 `RuntimeError`.
 
-## Plex Interop
+## The Dtype-Erased SimpleArray
 
 The dtype-erased `SimpleArray` participates in the same interoperation
 with two differences.  Constructing it from an ndarray infers the dtype
