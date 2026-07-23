@@ -5,8 +5,9 @@
 """
 Window manager feature for pilot.
 
-List every open MDI sub-window under the "Window" menu and bring one to
-the foreground when its entry is chosen.
+Arrange the open MDI sub-windows through layout actions under the
+"Window" menu, list every open sub-window there, and bring one to the
+foreground when its entry is chosen.
 """
 
 from PySide6 import QtGui
@@ -19,39 +20,68 @@ __all__ = [
 
 
 class WindowManager(_gui_common.PilotFeature):
-    """List open MDI sub-windows under the "Window" menu.
+    """Arrange and list open MDI sub-windows under the "Window" menu.
 
-    One checkable action per open sub-window, labelled by its title.
+    A static section on top holds the layout actions (Tile, Cascade)
+    driving the QMdiArea built-in layouts. Below a separator follows one
+    checkable action per open sub-window, labelled by its title.
     Triggering an action activates that sub-window; the active one is
-    checked. The list is rebuilt each time the menu is about to show.
+    checked. The list is rebuilt, and the layout actions follow whether
+    any sub-window is open, each time the menu is about to show.
     """
 
     #: objectName tagging every dynamic per-sub-window action.
     ITEM_ID = "window.subwindow"
+    #: objectName of the tile layout action.
+    TILE_ID = "window.layout.tile"
+    #: objectName of the cascade layout action.
+    CASCADE_ID = "window.layout.cascade"
 
     def __init__(self, *args, **kw):
         super(WindowManager, self).__init__(*args, **kw)
         self._menu = None
         self._items = []
+        self._layout_actions = []
 
     def populate_menu(self):
-        """Anchor the dynamic list on the "Window" menu.
+        """Build the static layout section and anchor the dynamic list.
 
-        The menu holds nothing static (panel toggles live under
-        View/Panels), so the list is seeded right away: a native menu
-        bar hides an empty menu, and a hidden menu can never fire
-        aboutToShow to fill itself.
+        The layout actions and the separator go through the menu model
+        by weight, so a later feature can slot an entry in between. The
+        dynamic list is seeded right away: a native menu bar hides an
+        empty menu, and a hidden menu can never fire aboutToShow to fill
+        itself.
         """
         self._menu = self._mgr.menu_model.menu("Window")
+
+        self._layout_actions = [
+            self.add_action(
+                "Window", "Tile",
+                "Tile the open sub-windows to fill the area",
+                self._tile, id=self.TILE_ID, weight=10),
+            self.add_action(
+                "Window", "Cascade",
+                "Stack the open sub-windows with an offset",
+                self._cascade, id=self.CASCADE_ID, weight=11),
+        ]
+        self._mgr.menu_model.place_separator("Window", weight=30)
+
         self._menu.aboutToShow.connect(self._rebuild)
         self._rebuild()
+
+    def _tile(self):
+        self._mgr.mdiArea.tileSubWindows()
+
+    def _cascade(self):
+        self._mgr.mdiArea.cascadeSubWindows()
 
     def _rebuild(self):
         """Refresh the sub-window list to match the MDI area.
 
         Drop the actions from the previous show, then append one checkable
         action per visible sub-window in area order, checking the active
-        one. A disabled placeholder is shown when none are open.
+        one. A disabled placeholder is shown when none are open, and the
+        layout actions are enabled only when a sub-window is open.
         """
         for act in self._items:
             self._menu.removeAction(act)
@@ -61,6 +91,9 @@ class WindowManager(_gui_common.PilotFeature):
         mdi = self._mgr.mdiArea
         active = mdi.activeSubWindow()
         subwins = [s for s in mdi.subWindowList() if s.isVisible()]
+
+        for act in self._layout_actions:
+            act.setEnabled(bool(subwins))
 
         if not subwins:
             self._append_placeholder()

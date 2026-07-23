@@ -130,6 +130,80 @@ class WindowMenuTC(unittest.TestCase):
         self.assertTrue(items[-1].text().endswith("Euler solver"))
 
 
+@unittest.skipIf(GITHUB_ACTIONS or not solvcon.HAS_PILOT,
+                 "GUI is not available in GitHub Actions")
+class WindowLayoutTC(unittest.TestCase):
+    """Drive the layout actions in the "Window" menu."""
+
+    def setUp(self):
+        self.mgr = _gui.controller.build()
+        self.model = self.mgr.menu_model
+        self.area = self.mgr.mdiArea
+        self.mgr.show()
+        self.area.closeAllSubWindows()
+        QtWidgets.QApplication.processEvents()
+
+    def tearDown(self):
+        self.area.closeAllSubWindows()
+        QtWidgets.QApplication.processEvents()
+
+    def _show(self):
+        """Fire the real freshness hook that refreshes the menu."""
+        self.model.menu("Window").aboutToShow.emit()
+
+    def test_layout_actions_precede_the_list(self):
+        # The static layout section sits above the separator; the
+        # dynamic list follows it.
+        acts = self.model.menu("Window").actions()
+        names = [a.objectName() for a in acts]
+        sep = [i for i, a in enumerate(acts) if a.isSeparator()]
+        self.assertEqual(len(sep), 1)
+        self.assertLess(names.index(WindowManager.TILE_ID), sep[0])
+        self.assertLess(names.index(WindowManager.CASCADE_ID), sep[0])
+
+    def test_layout_actions_follow_open_windows(self):
+        self._show()
+        self.assertFalse(self.model.action(WindowManager.TILE_ID)
+                         .isEnabled())
+        self.assertFalse(self.model.action(WindowManager.CASCADE_ID)
+                         .isEnabled())
+        self.mgr.add2DWidget()
+        self._show()
+        self.assertTrue(self.model.action(WindowManager.TILE_ID)
+                        .isEnabled())
+        self.assertTrue(self.model.action(WindowManager.CASCADE_ID)
+                        .isEnabled())
+
+    def _stack(self):
+        """Pile every sub-window onto one rectangle.
+
+        The MDI area spreads new sub-windows out on its own, so a layout
+        assertion made from that state could pass with the action doing
+        nothing. Piling them up first makes the layout the only way the
+        geometries can separate.
+        """
+        for subwin in self.area.subWindowList():
+            subwin.setGeometry(0, 0, 200, 150)
+
+    def test_tile_separates_the_windows(self):
+        self.mgr.add2DWidget()
+        self.mgr.add3DWidget()
+        self._stack()
+        self.model.action(WindowManager.TILE_ID).trigger()
+        QtWidgets.QApplication.processEvents()
+        one, two = [s.geometry() for s in self.area.subWindowList()]
+        self.assertFalse(one.intersects(two))
+
+    def test_cascade_offsets_the_windows(self):
+        self.mgr.add2DWidget()
+        self.mgr.add3DWidget()
+        self._stack()
+        self.model.action(WindowManager.CASCADE_ID).trigger()
+        QtWidgets.QApplication.processEvents()
+        one, two = [s.geometry() for s in self.area.subWindowList()]
+        self.assertNotEqual(one.topLeft(), two.topLeft())
+
+
 if __name__ == '__main__':
     unittest.main()
 
