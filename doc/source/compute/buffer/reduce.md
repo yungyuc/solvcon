@@ -7,10 +7,11 @@ the members that consume or reorder a whole array: the reductions
 `take_along_axis`, the searching group `argmin`, `argmax`, and
 `argwhere`, and the matrix family around `matmul`.  The parity labels
 of {doc}`the family overview <index>` apply throughout.  The
-reduction, statistics, and searching groups run over the whole
-storage, ghost region included, with the scope that
-{doc}`The Ghost Region on the First Axis <ghost>` fixes; the sorting
-and matrix families state their own scope in their sections.
+reduction and statistics groups run over the whole storage, ghost
+region included, with the scope that
+{doc}`The Ghost Region on the First Axis <ghost>` fixes, and the
+searching group behaves the same way; the sorting and matrix families
+state their own scope in their sections.
 
 ## Whole-Array Reductions
 
