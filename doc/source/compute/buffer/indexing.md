@@ -6,15 +6,17 @@ properties, and manipulates its shape and memory order through `reshape`
 and the transpose family.  This page defines those operations: which keys
 the subscript accepts, which right-hand sides assignment takes, what the
 layout properties report, and how the shape and layout of an array are
-changed.  The index origin is ghost-aware: an array carrying a ghost
-region addresses its ghost elements at negative indices, and the bounds
-below shift accordingly.  A dedicated page on ghost regions follows this
-one; the present page assumes arrays without a ghost region.
+changed.  Arrays carrying a ghost region shift the index origin; a
+dedicated page on ghost regions follows this one, and the present page
+assumes arrays without one.
 
 ## Element Access
 
-Element access diverges from numpy: a subscript must select exactly one
-element, and the result is a Python scalar, never a subarray or a view.
+Element access matches numpy in the index arithmetic and the error
+behavior (negative wrapping and `IndexError`), and diverges from numpy
+in the subscript scope and the return type: a subscript must select
+exactly one element, and the result is a Python scalar, never a
+subarray or a view.
 A one-dimensional array takes a single integer, and a multi-dimensional
 array takes a full tuple with one integer per dimension:
 
@@ -108,9 +110,12 @@ property: `sarr.ndarray[0:3]` is a numpy view over the array's memory.
 `__setitem__` accepts two families of keys: the scalar keys of the read
 path, assigning one element, and slice or ellipsis keys, assigning a
 whole region from a sequence.  A key and value combination outside the
-two families raises `RuntimeError` with the message "unsupported
-operation."; in particular a scalar value cannot be assigned to a slice
-(numpy would broadcast it over the region).
+two families raises `RuntimeError`; in particular a scalar value cannot
+be assigned to a slice key (numpy would broadcast it over the region).
+The message depends on the rejection path: a scalar on a lone slice or
+an ellipsis reports "unsupported operation.", while a scalar on a tuple
+of slices fails earlier, in the key cast, with a pybind11 "Unable to
+cast" message.
 
 ### Scalar Assignment
 
@@ -128,7 +133,8 @@ The cast follows pybind11 conversion, not numpy value coercion: a
 Python `int` converts to a floating-point element, but a value the
 element type cannot represent exactly is rejected with `RuntimeError`
 rather than truncated.  Assigning `2.5` to an integer array or `300`
-to an `int8` array both raise, where numpy would truncate or wrap.
+to an `int8` array both raise, where numpy truncates the float
+(storing 2) and raises `OverflowError` for the out-of-range integer.
 The complex classes accept both solvcon's own complex scalars and
 Python or numpy complex values, as defined in
 {doc}`Numpy and Buffer-Protocol Interoperation <ndarray>`.
@@ -198,11 +204,14 @@ The element type of a sequence right-hand side does not need to match
 the array: any dtype of the element-type table in
 {doc}`Construction and Data Types <construct>` is converted
 element-wise during the copy, so an `int32` or `float32` source fills a
-`float64` array.  Two conversions are refused: mixing complex and
+`float64` array.  Three conversions are refused.  Mixing complex and
 non-complex types raises `RuntimeError` ("Cannot convert between
-complex and non-complex types"), and a dtype outside the table, such
-as a string dtype, raises `RuntimeError` ("input array data type not
-support!").
+complex and non-complex types").  A complex source fills only the
+complex array of the same precision, so a `complex64` source into a
+`SimpleArrayComplex128` also raises `RuntimeError`, reusing the same
+message even though both sides are complex.  A dtype outside the
+table, such as a string dtype, raises `RuntimeError` ("input array
+data type not support!").
 
 ## Shape and Layout Properties
 
@@ -220,11 +229,18 @@ sarr = solvcon.SimpleArrayFloat64((2, 3, 4))
 assert sarr.shape == (2, 3, 4)
 assert sarr.stride == (12, 4, 1)  # elements; numpy reports (96, 32, 8)
 assert sarr.size == 24
-assert sarr.itemsize == 8
 assert sarr.nbytes == 192
+plex = solvcon.SimpleArray((2, 3, 4), dtype='float64')
+assert plex.itemsize == 8
 ```
 
-### len()
+On the typed classes, reading `itemsize` currently raises `TypeError`:
+the binding registers the zero-argument C++ getter as an instance
+property, which pybind11 rejects at access time.  Per the parity
+policy this is a defect, not a divergence; the example above reads the
+property through the erased wrapper, where it works.
+
+### The `len()` Function
 
 `len()` diverges from numpy: it returns the total element count, equal
 to `size`, for any dimensionality.  Numpy returns the length of the
@@ -270,25 +286,39 @@ sarr.reshape(23)
 # available buffer byte count 192 at data offset 0
 ```
 
-The operation diverges from numpy in the failure modes, not the happy
-path: numpy `reshape` also returns a sharing view for a compatible
-layout, but falls back to a silent copy when the layout does not
-permit a view, infers a dimension given as `-1`, and raises
-`ValueError` on a count mismatch.  The SimpleArray `reshape` never
-copies, never infers, and raises `RuntimeError`; the desired behavior
-is that the result always shares the buffer.
+The operation diverges from numpy beyond the failure modes.  Numpy
+`reshape` also returns a sharing view for a compatible layout, but
+falls back to a silent copy when the layout does not permit a view,
+infers a dimension given as `-1`, and raises `ValueError` on a count
+mismatch.  The SimpleArray `reshape` never copies, never infers, and
+raises `RuntimeError`; the desired behavior is that the result always
+shares the buffer.  Because the result is always row-major over the
+shared buffer, reshaping a non-contiguous array reinterprets the
+storage order rather than the logical order.  After an in-place
+transpose the elements come back in their original storage sequence,
+where the numpy `.T.reshape` spelling copies them in transposed
+logical order:
+
+```python
+sarr = solvcon.SimpleArrayFloat64(array=np.arange(6.).reshape((2, 3)))
+sarr.transpose()
+assert [sarr.reshape(6)[i] for i in range(6)] == [0, 1, 2, 3, 4, 5]
+ndarr = np.arange(6.).reshape((2, 3))
+assert ndarr.T.reshape(6).tolist() == [0, 3, 1, 4, 2, 5]
+```
 
 ## Transpose
 
 The transpose family diverges from numpy, which has no in-place
 transpose and returns sharing views from `.transpose()` and `.T`.
 
-### transpose
+### The `transpose` Method
 
 The full signature is `transpose(axis=None, inplace=True, copy=False)`.
 With `axis=None` all axes are reversed; with a tuple, the i-th new
-axis is sourced from the `axis[i]`-th old axis, exactly the numpy
-`transpose` axis convention:
+axis is sourced from the `axis[i]`-th old axis, following the numpy
+`transpose` axis convention except that the entries must be
+non-negative, where numpy also accepts negative axis numbers:
 
 ```python
 sarr = solvcon.SimpleArrayFloat64((2, 3, 4))
@@ -301,7 +331,7 @@ assert sarr.shape == (2, 4, 3)
 ```
 
 The `axis` tuple must have one entry per dimension and every entry
-must be a valid axis; violations raise `RuntimeError`
+must be a valid non-negative axis; violations raise `RuntimeError`
 ("SimpleArray::transpose: axis size mismatch" and
 "SimpleArray::transpose: axis out of range").  A repeated axis is not
 currently detected, where numpy raises on a repeated axis; rejecting
@@ -313,9 +343,11 @@ The `inplace` and `copy` flags select what is transposed and how:
   `inplace=False` leaves the receiver untouched and transposes an
   independent deep copy.
 - `copy=False` (default) flips only the metadata: shape and stride are
-  permuted and no element moves, so the transposed array is
-  F-contiguous when the source was C-contiguous.  `copy=True`
-  physically rearranges the elements into a fresh C-contiguous buffer.
+  permuted and no element moves.  Under the full axis reversal the
+  flip of a C-contiguous source is F-contiguous; a partial permutation
+  such as `(0, 2, 1)` generally yields a layout that is neither.
+  `copy=True` physically rearranges the elements into a fresh
+  C-contiguous buffer.
 
 ```python
 sarr = solvcon.SimpleArrayFloat64((2, 3, 4))
@@ -340,7 +372,7 @@ copy.  Whether the return value should instead be the receiver (to
 support chaining) is an open decision; do not rely on the returned
 object aliasing the receiver.
 
-### transpose_copy
+### The `transpose_copy` Method
 
 `transpose_copy()` returns a fresh C-contiguous array with the axes
 reversed and the elements physically rearranged, leaving the receiver
@@ -359,7 +391,7 @@ A zero- or one-dimensional array has no axes to reverse, so the result
 is a plain deep copy.  Two applications round-trip: transposing the
 transpose reproduces the original shape and content.
 
-### T
+### The `T` Property
 
 The `T` property returns a deep-copied transposed array: the buffer is
 cloned and the metadata of the clone is reversed, so the result never
@@ -377,14 +409,14 @@ assert t[0, 0] == 1.0             # the copy does not see the write
 
 ## Contiguity
 
-### is_c_contiguous and is_f_contiguous
+### The `is_c_contiguous` and `is_f_contiguous` Properties
 
 The two read-only properties report whether the stride describes a
 row-major (C) or column-major (Fortran) layout over the shape,
 matching the numpy `flags.c_contiguous` and `flags.f_contiguous`
 semantics under the property spelling of the family.  Dimensions of
-extent zero or one place no constraint, so a degenerate shape (a
-single row, column, or element) reports both as `True`, as numpy does:
+extent one place no constraint, so a degenerate shape (a single row,
+column, or element) reports both as `True`, as numpy does:
 
 ```python
 sarr = solvcon.SimpleArrayFloat64((2, 3, 4))
@@ -394,7 +426,16 @@ assert sarr.is_f_contiguous and not sarr.is_c_contiguous
 assert solvcon.SimpleArrayFloat64((1, 4)).is_f_contiguous
 ```
 
-### to_row_major and to_column_major
+Zero-extent dimensions diverge from numpy: the zero extent collapses
+the running stride expectation, so an empty shape mixing a zero-extent
+dimension with a longer one reports only one of the flags (for
+example, `SimpleArrayFloat64((0, 4))` is C-contiguous but not
+F-contiguous), where numpy flags every empty array as both.  Only an
+empty shape whose dimensions are all degenerate reports both, as
+{doc}`Numpy and Buffer-Protocol Interoperation <ndarray>` records for
+the wrap-side consequence of the same flags.
+
+### The `to_row_major` and `to_column_major` Conversions
 
 `to_row_major()` and `to_column_major()` return a fresh array with the
 same shape and values whose stride is C-contiguous or F-contiguous
@@ -425,7 +466,9 @@ The dtype-erased `SimpleArray` exposes the access and property core of
 this page with the typed semantics: `__len__`, the scalar read and
 write forms, the slice and ellipsis assignment parser, and the
 `shape`, `stride`, `size`, `itemsize`, and `nbytes` properties all
-behave as on the typed classes.
+behave as defined on this page.  For `itemsize` the erased wrapper is
+currently the only working spelling, per the typed-binding defect
+noted above.
 
 `reshape` on the erased wrapper accepts the same shapes and applies
 the same element-count check, but the result currently does not share
