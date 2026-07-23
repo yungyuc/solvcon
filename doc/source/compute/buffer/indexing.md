@@ -428,10 +428,10 @@ assert solvcon.SimpleArrayFloat64((1, 4)).is_f_contiguous
 
 Zero-extent dimensions diverge from numpy: the zero extent collapses
 the running stride expectation, so an empty shape mixing a zero-extent
-dimension with a longer one reports only one of the flags (for
-example, `SimpleArrayFloat64((0, 4))` is C-contiguous but not
-F-contiguous), where numpy flags every empty array as both.  Only an
-empty shape whose dimensions are all degenerate reports both, as
+dimension with a longer one need not report both flags (for example,
+`SimpleArrayFloat64((0, 4))` is C-contiguous but not F-contiguous),
+where numpy flags every empty array as both.  An empty shape whose
+dimensions are all degenerate reports both, as
 {doc}`Numpy and Buffer-Protocol Interoperation <ndarray>` records for
 the wrap-side consequence of the same flags.
 
