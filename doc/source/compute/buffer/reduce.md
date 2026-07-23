@@ -6,9 +6,11 @@ the members that consume or reorder a whole array: the reductions
 `var`, and `std`, the sorting group `sort`, `argsort`, and
 `take_along_axis`, the searching group `argmin`, `argmax`, and
 `argwhere`, and the matrix family around `matmul`.  The parity labels
-of {doc}`the family overview <index>` apply throughout.  All of the
-operations run over the whole storage, ghost region included, with the
-scope that {doc}`The Ghost Region on the First Axis <ghost>` fixes.
+of {doc}`the family overview <index>` apply throughout.  The
+reduction, statistics, and searching groups run over the whole
+storage, ghost region included, with the scope that
+{doc}`The Ghost Region on the First Axis <ghost>` fixes; the sorting
+and matrix families state their own scope in their sections.
 
 ## Whole-Array Reductions
 
@@ -77,9 +79,12 @@ sres = sarr.mean(axis=[0, 2])
 assert (sres.ndarray == np.mean(narr, axis=(0, 2))).all()
 ```
 
-On the floating-point classes every statistic is verified equal to its
-numpy counterpart, in both forms, on contiguous and strided arrays and
-on arrays with a ghost region.  Three error cases guard the axis form:
+The tests verify every statistic equal to its numpy counterpart on
+`SimpleArrayFloat64`, in both forms, and `median`, `var`, and `std`
+also on `SimpleArrayComplex128` in the whole-array form.  Strided,
+non-contiguous arrays are exercised only in the whole-array form;
+arrays with a ghost region are exercised in both forms.  Three error
+cases guard the axis form:
 an axis outside `[0, ndim)` raises `IndexError`
 (`reduce: axis out of range`), so the negative axis spelling of numpy
 is rejected instead of counting from the end, and reducing no axis or
@@ -111,9 +116,13 @@ assert np.allclose(sres.ndarray, np.average(narr, weights=weights,
 ```
 
 A weight of the wrong shape and a weight summing to zero each raise
-`RuntimeError` (`SimpleArray::average(): weight shape does not match
-array shape`, `SimpleArray::average(): total weight is zero`); numpy
-raises `ZeroDivisionError` for the zero total.
+`RuntimeError`.  The whole-array form reports
+`SimpleArray::average(): weight shape does not match array shape` and
+`SimpleArray::average(): total weight is zero`; the axis form checks
+per reduced slice and reports
+`SimpleArray::average_op(): weight size does not match array size`
+and `SimpleArray::average_op(): total weight is zero`.  Numpy raises
+`ZeroDivisionError` for the zero total.
 
 ### The `median` Method
 
@@ -170,7 +179,7 @@ assert sarr.var() == 3        # numpy: 1.25, with the truncated mean
 ```
 
 The tests verify the statistics only on the floating-point and complex
-classes, plus the 8-bit median; the integer truncation above is
+classes, plus the boolean and 8-bit median; the integer truncation is
 established from the kernel source and the bound signatures.  Whether
 the integer statistics should promote to a floating-point result as
 numpy does is an open decision; this page records the truncating
@@ -248,16 +257,17 @@ data.take_along_axis(idx)
 ```
 
 An operand that is not an integer-classed SimpleArray is not
-rejected: the binding falls through without gathering and hands back
-the receiver's data, silently ignoring the operand.  The explicit
+rejected: the binding falls through without gathering and returns the
+receiver itself, silently ignoring the operand.  The explicit
 list of accepted classes in the binding makes the intent clear, so
 raising `TypeError` for other operands is target behavior; do not
 rely on the fall-through.
 
 `take_along_axis_simd(indices)` is the performance-explicit variant
-with identical desired semantics, validating the indices up front and
-gathering through the SIMD path; its out-of-range message carries the
-`_simd` name.
+with identical desired semantics.  The current implementation
+validates all indices up front and then gathers with the same scalar
+loop; no vector gather kernel backs it yet.  Its out-of-range message
+carries the `_simd` name.
 
 ## Searching
 
@@ -294,8 +304,8 @@ ret = sarr.eq(10).argwhere()
 assert (ret.ndarray == np.argwhere(narr == 10)).all()
 ```
 
-Like the reductions, `argmin`, `argmax`, and `argwhere` address their
-elements through the linear storage; the verified scope is
+Like `min()` and `max()`, `argmin`, `argmax`, and `argwhere` address
+their elements through the linear storage; the verified scope is
 C-contiguous arrays.
 
 ## Matrix Operations
@@ -348,9 +358,17 @@ replace the receiver's content, reshaping it to the result.  Like the
 in-place arithmetic of
 {doc}`Elementwise Arithmetic, Comparison, and Selection <elementwise>`
 they return `None`, under the same open decision on returning the
-receiver.  The `__imatmul__` protocol does return the receiver, as the
-Python data model requires, so the `a @= b` statement works and
-rebinds `a` to the updated array.
+receiver.
+
+The `__imatmul__` protocol is bound so that `a @= b` computes, but
+the binding returns the updated receiver by value: the statement
+mutates the original storage in place and then rebinds `a` to a fresh
+copy, so a prior alias of `a` sees the product but no later change
+made through the rebound name.  The binding's own comment records
+that the `__i*__` protocols must return the receiver itself, as the
+Python data model expects, so doing so is target behavior; until
+then, do not rely on `a` and its old aliases staying the same object
+across `@=`.
 
 ### Constructors and Transforms
 
@@ -394,9 +412,9 @@ solvcon.SimpleArrayFloat64((3, 4), value=0.0).symmetrize()
 The bindings register the whole matrix family on every typed class.
 The tests exercise `matmul`, `pow`, `eye`, and `scaled_eye` on the
 floating-point classes, `hermitian` and `symmetrize` on `complex128`,
-and `trace` on the floating-point, integer, and complex classes; the
-other class-operation combinations follow the same kernels but are
-unverified.
+and `trace` on one class from each of the floating-point, integer,
+and complex groups; the other class-operation combinations follow the
+same kernels but are unverified.
 
 ## The Dtype-Erased SimpleArray
 
