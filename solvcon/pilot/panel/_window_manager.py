@@ -36,6 +36,10 @@ class WindowManager(_gui_common.PilotFeature):
     TILE_ID = "window.layout.tile"
     #: objectName of the cascade layout action.
     CASCADE_ID = "window.layout.cascade"
+    #: objectName of the single-row tiling action.
+    HORIZONTAL_ID = "window.layout.horizontal"
+    #: objectName of the single-column tiling action.
+    VERTICAL_ID = "window.layout.vertical"
 
     def __init__(self, *args, **kw):
         super(WindowManager, self).__init__(*args, **kw)
@@ -63,6 +67,14 @@ class WindowManager(_gui_common.PilotFeature):
                 "Window", "Cascade",
                 "Stack the open sub-windows with an offset",
                 self._cascade, id=self.CASCADE_ID, weight=11),
+            self.add_action(
+                "Window", "Tile Horizontally",
+                "Arrange the open sub-windows in a single row",
+                self._tile_horizontal, id=self.HORIZONTAL_ID, weight=12),
+            self.add_action(
+                "Window", "Tile Vertically",
+                "Arrange the open sub-windows in a single column",
+                self._tile_vertical, id=self.VERTICAL_ID, weight=13),
         ]
         self._mgr.menu_model.place_separator("Window", weight=30)
 
@@ -74,6 +86,41 @@ class WindowManager(_gui_common.PilotFeature):
 
     def _cascade(self):
         self._mgr.mdiArea.cascadeSubWindows()
+
+    def _tile_horizontal(self):
+        self._arrange(horizontal=True)
+
+    def _tile_vertical(self):
+        self._arrange(horizontal=False)
+
+    def _arrange(self, horizontal):
+        """Line the visible sub-windows up along one direction.
+
+        Each gets an equal share of the MDI viewport: side by side over
+        the full height when ``horizontal``, stacked over the full width
+        otherwise. QMdiArea has no directional counterpart to
+        tileSubWindows, so the geometry is dealt out by hand. A
+        minimized or maximized sub-window is restored first, else the
+        new geometry would not take effect.
+        """
+        mdi = self._mgr.mdiArea
+        subwins = [s for s in mdi.subWindowList() if s.isVisible()]
+        if not subwins:
+            return
+
+        area = mdi.contentsRect()
+        width, height = area.width(), area.height()
+        if horizontal:
+            width //= len(subwins)
+        else:
+            height //= len(subwins)
+
+        for index, subwin in enumerate(subwins):
+            if subwin.isMinimized() or subwin.isMaximized():
+                subwin.showNormal()
+            x = area.x() + index * width if horizontal else area.x()
+            y = area.y() if horizontal else area.y() + index * height
+            subwin.setGeometry(x, y, width, height)
 
     def _rebuild(self):
         """Refresh the sub-window list to match the MDI area.
