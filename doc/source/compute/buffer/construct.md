@@ -197,8 +197,10 @@ sarr = solvcon.SimpleArray((2, 3), dtype='complex64', value=value)
 The erased wrapper exposes the core of the typed interface: the layout
 properties, element indexing, `reshape`, `fill`, `clone`, ghost control,
 and the `min`, `max`, `sum`, and `abs` reductions all behave as on the
-typed classes.  For operations it does not yet mirror, the `typed`
-property bridges to the concrete class: it returns an independent copy
+typed classes, except that `abs` currently returns the typed class of
+the wrapped array; returning an erased array is target behavior.  For
+operations it does not yet mirror, the `typed` property bridges to the
+concrete class: it returns an independent copy
 of the wrapped array as its typed class, and the `plex` property on a
 typed array returns an erased copy the same way.  Neither direction
 shares memory with the original, so the bridge serves read-style

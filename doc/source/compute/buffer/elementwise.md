@@ -97,7 +97,10 @@ sarr1.sub(sarr2)
 
 The complex classes bind the four methods with the C++ complex
 arithmetic; their scalar operands take the complex scalar types of
-{doc}`Numpy and Buffer-Protocol Interoperation <ndarray>`.
+{doc}`Numpy and Buffer-Protocol Interoperation <ndarray>`.  The Python
+built-in `complex` and the numpy complex scalars are rejected with
+`TypeError`: no implicit conversion is registered for the arithmetic
+operands, unlike element writes, which accept both spellings.
 
 ## In-Place Methods
 
@@ -162,8 +165,19 @@ open decision.  The `__abs__` protocol is not bound, so the built-in
 `iadd_simd`, `isub_simd`, `imul_simd`, `idiv_simd` are
 performance-explicit aliases of the plain forms: they route through the
 runtime-dispatched SIMD kernels, and the desired numerics are identical
-to the plain spellings.  Element types without a vector kernel fall
-back to the generic implementation with the same results.
+to the plain spellings.  On the numeric classes, element types without
+a vector kernel fall back to the generic implementation with the same
+results.
+
+On `SimpleArrayBool` the two groups currently differ.  The in-place
+variants delegate to the plain forms and keep the boolean semantics of
+the arithmetic methods above; the copying variants bypass that boolean
+guard and run the numeric kernels over the boolean elements, so
+`add_simd` and `mul_simd` still land on the logical or and and, but
+`sub_simd` and `div_simd` return integer-style values where the plain
+`sub` and `div` raise `RuntimeError`.  The boolean guard of the plain
+forms is the evident intent, so extending it to the copying variants
+is target behavior.
 
 The operand rules differ from the plain forms in one way: the SIMD
 variants take only an array operand, so a scalar raises `TypeError`.
@@ -364,9 +378,9 @@ assert (ret.ndarray == np.argwhere(narr == 10)).all()
 The method is bound on every typed class and selects the nonzero
 elements, so the boolean array from a comparison is the intended,
 tested condition form: `sarr.eq(10).argwhere()` is the counterpart of
-`np.argwhere(narr == 10)`.  A later page on reductions and searching
-covers the method beside `argmin` and `argmax`; this page fixes only
-its role as the index-selection half of comparison.
+`np.argwhere(narr == 10)`.  A later page on reductions, statistics,
+and searching covers the method beside `argmin` and `argmax`; this
+page fixes only its role as the index-selection half of comparison.
 
 ### The `where` Method
 

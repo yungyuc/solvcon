@@ -230,9 +230,9 @@ Reductions and statistics operate over the whole array, ghost region
 included: `sum()`, `min()`, `max()`, `median()`, and `average()` on an
 array with a ghost region return the same result as on the ghost-free
 array, and the axis-wise forms enumerate the first axis from
-`-nghost`.  A later page on reductions and statistics defines the
-operations themselves; this page only fixes their scope with respect
-to the partition.
+`-nghost`.  A later page on reductions, statistics, and searching
+defines the operations themselves; this page only fixes their scope
+with respect to the partition.
 
 ## Shared Views Ignore the Partition
 
