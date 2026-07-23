@@ -72,7 +72,7 @@ sarr = solvcon.SimpleArrayFloat64((2, 3, 4))
 ```
 
 The element storage is allocated immediately and is not initialized; the
-allocation semantics match numpy `numpy.empty`.  The `shape`, `stride`,
+allocation semantics match `numpy.empty`.  The `shape`, `stride`,
 `size`, `itemsize`, and `nbytes` properties describe the layout of the
 row-major result, and `len()` returns the element count:
 
@@ -86,6 +86,10 @@ assert sarr.nbytes == 24 * 8
 assert len(sarr) == 24
 ```
 
+`len()` diverges from numpy: it returns the total element count, where
+numpy returns the length of the first dimension (24 versus 2 for the
+shape above).
+
 A negative shape dimension raises `IndexError`:
 
 ```python
@@ -96,7 +100,7 @@ solvcon.SimpleArrayFloat64((-1, 2))
 ### Fill Value
 
 The second constructor form takes an initial value and fills every
-element with it, in the spirit of numpy `numpy.full`:
+element with it, in the spirit of `numpy.full`:
 
 ```python
 sarr = solvcon.SimpleArrayFloat64((4, 4), value=3.14159)
@@ -159,7 +163,12 @@ sarr = solvcon.SimpleArray(np.arange(6, dtype='int32'))
 
 The dtype string selects the typed class per the table above; a string
 outside the table raises `ValueError`.  The third form infers the dtype
-from the numpy array and shares its memory, like the typed `array=` form.
+from the numpy array and shares its memory.  Unlike the typed `array=`
+form, the erased form currently requires a C-contiguous source: it takes
+the data pointer and byte count as-is and assumes row-major strides,
+with no stride or contiguity validation, so a Fortran-ordered or sliced
+source is silently mis-wrapped.  Accepting strided and Fortran-ordered
+sources with the same fidelity as the typed form is target behavior.
 
 The `value=` form diverges from numpy: where `numpy.full` casts the fill
 value to the array dtype, `SimpleArray` validates the Python type of the
@@ -176,16 +185,25 @@ solvcon.SimpleArray((2, 3), dtype='float64', value=3)
 # TypeError: Data type mismatch, expected Python float
 ```
 
-The complex dtypes do not accept a Python complex fill value; construct a
-complex array from a numpy array instead.
+The complex dtypes reject the Python built-in `complex` as a fill value;
+the accepted spelling is solvcon's own complex value types, matched
+exactly to the dtype:
+
+```python
+value = solvcon.complex64(real=1.5, imag=2.5)
+sarr = solvcon.SimpleArray((2, 3), dtype='complex64', value=value)
+```
 
 The erased wrapper exposes the core of the typed interface: the layout
 properties, element indexing, `reshape`, `fill`, `clone`, ghost control,
 and the `min`, `max`, `sum`, and `abs` reductions all behave as on the
 typed classes.  For operations it does not yet mirror, the `typed`
-property bridges to the concrete class: it returns the wrapped array as
-its typed class, and the `plex` property on a typed array returns the
-erased wrapper.  The content survives the round trip in both directions:
+property bridges to the concrete class: it returns an independent copy
+of the wrapped array as its typed class, and the `plex` property on a
+typed array returns an erased copy the same way.  Neither direction
+shares memory with the original, so the bridge serves read-style
+workflows; a write made through the bridged object stays in the copy.
+The content survives the round trip in both directions:
 
 ```python
 plex = solvcon.SimpleArray((2, 3, 4), dtype='float64', value=1.5)

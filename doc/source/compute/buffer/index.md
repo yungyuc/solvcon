@@ -37,8 +37,9 @@ Typed array classes provide multi-dimensional access on top of a
 The dtype-erased class `SimpleArray` wraps any of the typed classes behind a
 single Python type.  It is constructed with a shape and a dtype string (or
 from a numpy `ndarray`) and dispatches operations to the concrete typed
-class it holds.  The `typed` property returns the wrapped typed array, and
-the `plex` property on a typed array returns the erased wrapper.
+class it holds.  The `typed` property returns a typed copy of the wrapped
+array, and the `plex` property on a typed array returns an erased copy;
+neither bridge shares memory with the original.
 
 Growable typed buffers collect elements one by one, in the spirit of
 `std::vector`:

@@ -90,14 +90,15 @@ arr = ct.as_array()
 assert list(arr) == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
 ```
 
-The conversion does not copy: it converts the underlying expander in
-place, and the returned array shares memory with the collector, so a
-write through one side is visible through the other.  The alignment of
-the collector carries over to the array.  Growing the collector past its
-capacity after the conversion reallocates the storage and detaches the
-two objects; the previously returned array keeps the old memory, as does
-`clear()`, which only resets the size and leaves the shared content in
-place.
+The conversion converts the underlying expander in place: the expander
+adopts a `ConcreteBuffer` as its storage, and the returned array wraps
+that buffer, so from then on the array and the collector share memory
+and a write through one side is visible through the other.  The
+alignment of the collector carries over to the array.  The conversion
+also sets the capacity equal to the size, so a subsequent `push_back`
+reallocates the storage and detaches the two objects; the previously
+returned array keeps the old memory, as does `clear()`, which only
+resets the size and leaves the shared content in place.
 
 ## Alignment
 
@@ -113,13 +114,19 @@ Valid values are 0 (the default), 16, 32, and 64 bytes; any other value
 raises `ValueError`.  With a non-zero alignment, the byte count of every
 allocation (the element count times the item size) must be a multiple of
 the alignment, or the operation raises `ValueError`; the check applies to
-the sized constructor and to `reserve`:
+the sized constructor, to `reserve`, to the allocation behind
+`as_array`, and to the growth done by `push_back`:
 
 ```python
 ct = solvcon.SimpleCollectorFloat64(16, 16)  # 128 bytes, multiple of 16
 ct.reserve(33)
 # ValueError: BufferExpander::allocate: size ... must be a multiple ...
 ```
+
+An aligned collector must therefore start from a size that satisfies the
+multiple constraint: an empty 16-byte-aligned `SimpleCollectorFloat64`
+cannot `push_back`, because the initial capacity-one growth would
+allocate 8 bytes against the 16-byte alignment.
 
 The read-only `alignment` property returns the requested value, and the
 array produced by `as_array()` reports the same alignment.
