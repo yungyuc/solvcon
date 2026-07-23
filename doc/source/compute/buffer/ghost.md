@@ -4,8 +4,7 @@ A solver stencil near a domain boundary reads neighbors that lie outside
 the domain.  The SimpleArray family serves that access pattern directly:
 the `nghost` property splits the first axis of an array into a ghost
 region and a body, so that boundary (halo) data lives in the same
-contiguous storage as the interior and is addressed with negative
-indices.  The feature is entirely solvcon-specific; numpy has no
+storage as the interior and is addressed with negative indices.  The feature is entirely solvcon-specific; numpy has no
 counterpart, so the parity labels of {doc}`the family overview <index>`
 do not apply on this page.  Where the ghost region meets an operation
 family that numpy also sees, such as slice assignment or the shared
@@ -147,8 +146,8 @@ first axis in the logical, ghost-shifted coordinates of this page: the
 parser adds `nghost` to an explicit start or stop bound and then
 applies the ordinary Python slice rules over the full first-axis
 extent.  An omitted bound is not shifted; it means the storage edge,
-so an omitted start begins at the first ghost element and an omitted
-stop runs to the end of storage.  The stop bound `0` therefore selects
+so with a forward step an omitted start begins at the first ghost
+element and an omitted stop runs to the end of storage.  The stop bound `0` therefore selects
 exactly the ghost region, and the start bound `0` selects the body:
 
 ```python
