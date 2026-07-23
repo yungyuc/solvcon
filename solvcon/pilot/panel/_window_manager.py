@@ -10,7 +10,7 @@ Arrange the open MDI sub-windows through layout actions under the
 foreground when its entry is chosen.
 """
 
-from PySide6 import QtGui
+from PySide6 import QtGui, QtWidgets
 
 from ..base import _gui_common
 
@@ -22,9 +22,10 @@ __all__ = [
 class WindowManager(_gui_common.PilotFeature):
     """Arrange and list open MDI sub-windows under the "Window" menu.
 
-    A static section on top holds the layout actions (Tile, Cascade)
-    driving the QMdiArea built-in layouts. Below a separator follows one
-    checkable action per open sub-window, labelled by its title.
+    A static section on top holds the layout actions arranging the
+    sub-windows over the area, and a toggle switching the area to a
+    tabbed view. Below a separator follows one checkable action per
+    open sub-window, labelled by its title.
     Triggering an action activates that sub-window; the active one is
     checked. The list is rebuilt, and the layout actions follow whether
     any sub-window is open, each time the menu is about to show.
@@ -40,6 +41,8 @@ class WindowManager(_gui_common.PilotFeature):
     HORIZONTAL_ID = "window.layout.horizontal"
     #: objectName of the single-column tiling action.
     VERTICAL_ID = "window.layout.vertical"
+    #: objectName of the tabbed view mode toggle.
+    TABBED_ID = "window.layout.tabbed"
 
     def __init__(self, *args, **kw):
         super(WindowManager, self).__init__(*args, **kw)
@@ -76,6 +79,13 @@ class WindowManager(_gui_common.PilotFeature):
                 "Arrange the open sub-windows in a single column",
                 self._tile_vertical, id=self.VERTICAL_ID, weight=13),
         ]
+
+        act = self.add_action(
+            "Window", "Tabbed View",
+            "Show the sub-windows as pages of a tab bar",
+            None, id=self.TABBED_ID, weight=20, checkable=True)
+        act.toggled.connect(self._set_tabbed)
+
         self._mgr.menu_model.place_separator("Window", weight=30)
 
         self._menu.aboutToShow.connect(self._rebuild)
@@ -87,11 +97,41 @@ class WindowManager(_gui_common.PilotFeature):
     def _cascade(self):
         self._mgr.mdiArea.cascadeSubWindows()
 
+    def _set_tabbed(self, on):
+        """Switch the MDI area between sub-window and tabbed view.
+
+        Entering the tabbed view makes the tabs closable and movable, so
+        the tab bar keeps the window controls the sub-window frames
+        provided. The layout actions are refreshed right away: tiling
+        and cascading mean nothing while the area shows tabs.
+        """
+        mdi = self._mgr.mdiArea
+        if on:
+            mdi.setViewMode(QtWidgets.QMdiArea.ViewMode.TabbedView)
+            mdi.setTabsClosable(True)
+            mdi.setTabsMovable(True)
+        else:
+            mdi.setViewMode(QtWidgets.QMdiArea.ViewMode.SubWindowView)
+        self._update_layout_actions()
+
     def _tile_horizontal(self):
         self._arrange(horizontal=True)
 
     def _tile_vertical(self):
         self._arrange(horizontal=False)
+
+    def _update_layout_actions(self):
+        """Enable the layout actions only when they can act.
+
+        They need a sub-window to arrange, and the sub-window view to
+        arrange it in: geometry is meaningless while the area shows
+        tabs.
+        """
+        mdi = self._mgr.mdiArea
+        subwins = [s for s in mdi.subWindowList() if s.isVisible()]
+        tabbed = mdi.viewMode() == QtWidgets.QMdiArea.ViewMode.TabbedView
+        for act in self._layout_actions:
+            act.setEnabled(bool(subwins) and not tabbed)
 
     def _arrange(self, horizontal):
         """Line the visible sub-windows up along one direction.
@@ -139,8 +179,7 @@ class WindowManager(_gui_common.PilotFeature):
         active = mdi.activeSubWindow()
         subwins = [s for s in mdi.subWindowList() if s.isVisible()]
 
-        for act in self._layout_actions:
-            act.setEnabled(bool(subwins))
+        self._update_layout_actions()
 
         if not subwins:
             self._append_placeholder()
