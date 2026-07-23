@@ -245,6 +245,63 @@ class WindowLayoutTC(unittest.TestCase):
         self.assertFalse(one.intersects(two))
 
 
+@unittest.skipIf(GITHUB_ACTIONS or not solvcon.HAS_PILOT,
+                 "GUI is not available in GitHub Actions")
+class TabbedViewTC(unittest.TestCase):
+    """Drive the "Tabbed View" toggle in the "Window" menu."""
+
+    def setUp(self):
+        self.mgr = _gui.controller.build()
+        self.model = self.mgr.menu_model
+        self.area = self.mgr.mdiArea
+        self.mgr.show()
+        self.area.closeAllSubWindows()
+        QtWidgets.QApplication.processEvents()
+        # The MDI area outlives each case; put the view mode back so a
+        # leftover tab bar cannot leak into the next case.
+        self.addCleanup(self.model.action(WindowManager.TABBED_ID)
+                        .setChecked, False)
+
+    def tearDown(self):
+        self.area.closeAllSubWindows()
+        QtWidgets.QApplication.processEvents()
+
+    def _show(self):
+        """Fire the real freshness hook that refreshes the menu."""
+        self.model.menu("Window").aboutToShow.emit()
+
+    def test_toggle_switches_the_view_mode(self):
+        act = self.model.action(WindowManager.TABBED_ID)
+        Mode = QtWidgets.QMdiArea.ViewMode
+        self.assertEqual(self.area.viewMode(), Mode.SubWindowView)
+        act.setChecked(True)
+        self.assertEqual(self.area.viewMode(), Mode.TabbedView)
+        act.setChecked(False)
+        self.assertEqual(self.area.viewMode(), Mode.SubWindowView)
+
+    def test_tabs_are_closable_and_movable(self):
+        # Tabs must keep the window controls the sub-window frames
+        # provided, or a window opened in tabbed view could never be
+        # closed from the tab bar.
+        self.model.action(WindowManager.TABBED_ID).setChecked(True)
+        self.assertTrue(self.area.tabsClosable())
+        self.assertTrue(self.area.tabsMovable())
+
+    def test_tabbed_view_disables_the_layout_actions(self):
+        self.mgr.add2DWidget()
+        act = self.model.action(WindowManager.TABBED_ID)
+        self._show()
+        self.assertTrue(self.model.action(WindowManager.TILE_ID)
+                        .isEnabled())
+        act.setChecked(True)
+        self.assertFalse(self.model.action(WindowManager.TILE_ID)
+                         .isEnabled())
+        self.assertTrue(act.isEnabled())
+        act.setChecked(False)
+        self.assertTrue(self.model.action(WindowManager.TILE_ID)
+                        .isEnabled())
+
+
 if __name__ == '__main__':
     unittest.main()
 
