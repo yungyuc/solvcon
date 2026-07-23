@@ -62,9 +62,9 @@ as a clone of it.  This document is normative: it defines the desired
 behavior, and the implementation converges to it over time.  With respect to
 numpy the desired behavior falls into three categories:
 
-1. Some behavior deliberately matches numpy.  Element indexing, the buffer
-   protocol, and dtype naming follow numpy so that arrays move between the
-   two worlds without surprises.
+1. Some behavior deliberately matches numpy.  The index arithmetic of
+   element access, the buffer protocol, and dtype naming follow numpy so
+   that arrays move between the two worlds without surprises.
 2. Some behavior deliberately diverges from numpy.  The arrays serve the
    solvers first: ghost regions extend an array below index zero for
    solver halo data, alignment is an explicit constructor argument for SIMD
@@ -86,6 +86,12 @@ tagged with one of three parity labels:
   implementation is not there yet; the tag is followed by what still
   differs.
 
+Where the desired behavior itself is not yet settled, a page marks the
+question as an open decision: the current behavior is recorded as fact,
+but no target is committed until the decision lands.  An open decision
+differs from target behavior, which states a settled intent awaiting
+implementation.
+
 ## Contents
 
 ```{toctree}
@@ -95,6 +101,7 @@ memory
 construct
 collector
 ndarray
+indexing
 ```
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->
