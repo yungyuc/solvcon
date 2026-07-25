@@ -37,9 +37,16 @@ package it lives in, but "feature" would be ambiguous in a mesh library
 without the qualifier, and the two names that do mislead are the
 `_gui_common` module and several of the subclasses.
 
+One requirement shapes the whole plan: the pilot will need to load and
+unload features at run time.  That is why teardown is designed in from
+stage 2 instead of retrofitted later, and why the registry in stage 3 is
+shaped to grow an activation state.  "Future: loading and unloading
+features at run time" sets out what that will demand.
+
 The rest of this page is the evidence, the outside comparison, a six-stage
-plan whose first two stages are mechanical and independently landable, and
-an appendix naming the design patterns each stage draws on.
+plan whose first two stages are mechanical and independently landable, the
+future phase, and an appendix naming the design patterns each stage draws
+on.
 
 ## What the class is today
 
@@ -555,6 +562,140 @@ which is what the class was built for.  The argument against is the
 duplication in F5: four panels and five dialogs of copied structure is
 already more code than the stages that would remove it.
 
+## Future: loading and unloading features at run time
+
+The pilot will need to load and unload features while it runs.  That is a
+requirement, not a hypothesis, and it changes what the stages above are
+for.  Teardown stops being a symmetry nicety and becomes the load-bearing
+half of the contract; the registry stops being a build-time table and
+becomes the thing that owns each feature's activation state.
+
+The near-term stages do not change, but three of them gain a sharper
+purpose:
+
+- **Stage 2's `teardown` is no longer optional polish.**  It is what
+  unloading is built on, and it has to be total rather than good enough for
+  the menu bar.
+- **Stage 3's registry has to be shaped to grow an activation state.**  The
+  caution in the Registry appendix entry gets sharper with it: a live
+  registry is a global, and features must still not use it to find each
+  other.  Dependencies stay declared, resolved at load, and injected.
+- **F4's callback-versus-signal inconsistency becomes a correctness
+  matter.**  Qt drops a signal-slot connection when either object dies.  A
+  plain attribute callback (`solution_info.viewer_updated =
+  tree_panel.resync`) outlives its target and calls into a feature that has
+  been unloaded.
+
+### What a feature must give back
+
+Unloading is only safe if a feature can return everything it took.  Today
+the list is longer than any one feature tracks:
+
+- Menu entries.  Already removable by id through `RMenuModel::remove`, and
+  stage 2 records the ids, so this part is nearly free.
+- Dock widgets and MDI sub-windows, including ones held only by a Qt
+  parent.
+- Timers and threads.  `SolutionInfo` runs a `QTimer`; `AgentPanel` runs a
+  `QThread` and already joins it on the application's `aboutToQuit`.
+  Unload needs that same join at feature scope rather than at exit.
+- Event filters installed on objects the feature does not own, such as
+  `SolutionInfo`'s sub-window close filter.
+- Connections made to long-lived objects: the MDI area's
+  `subWindowActivated`, a dock's `visibilityChanged`, the application's
+  `aboutToQuit`.
+- Toggle-store subscriptions.  `ToggleActionBridge` already drops its token
+  when its action is destroyed, which unload turns from an edge case into
+  the normal path.
+- Console namespace handles seeded through `install_pilot_namespace`.
+- Entries the feature placed in another feature's menu or dialog, such as
+  the three mesh providers that feed `SampleMeshDialog`.
+
+One more obligation has no counterpart today: a feature must survive being
+referenced after it is gone.  The two consoles share one interpreter and
+users hold handles to whatever they touched, so an unloaded feature that is
+still referenced has to go inert rather than call into deleted C++ objects.
+An `alive` flag on the base class, checked at each entry point, is the
+cheap version of that guarantee.
+
+### Ownership has to be inverted
+
+A feature is a `QObject` with no parent, kept alive by an attribute on the
+controller, and the widgets it creates are parented to the main window.
+Deleting the feature therefore does not delete its UI, which is exactly
+backwards for unloading.
+
+The fix is the ownership discipline Qt already offers: parent each feature
+to the object that owns the registry, and let each feature own the Qt
+subtree it creates, either by parenting to a `QObject` it holds or by
+recording what it made for an explicit `deleteLater`.  Then dropping the
+feature drops its UI, and reverse-order destruction does the rest.  This is
+the same reason Qt Creator destroys plugin instances in reverse load
+order.[^qtc-lifecycle]
+
+### Two phases, independent of each other
+
+**Phase A, activation.**  In-tree features gain load and unload at run
+time.  The registry constructs and populates on load, calls `teardown` and
+drops the instance on unload, in dependency order, and either refuses or
+cascades when a loaded feature depends on the one going away.  This is the
+Component Configurator lifecycle[^posa2] and it is what Qt Creator's
+`aboutToShutdown` and Spyder's `on_plugin_teardown` implement.[^spyder] Qt
+Creator's asynchronous-shutdown return value is the precedent for a case
+the pilot already has: a feature with a running thread has to be able to
+say "not yet".
+
+**Phase B, discovery.**  Loading something that was not built at start-up
+needs a catalog: a static manifest or Python entry points, readable without
+importing the feature's module, so the UI can list what is available before
+anything is loaded.  This is npe2 and VS Code,[^npe2] and phase A's
+registry is deliberately shaped so it can be fed from such a catalog.
+
+The two are independent, and phase A is worth having alone: it gives
+runtime unload and reload of what ships in the tree, which is most of the
+value during development.  Phase B is what opens the door to features that
+ship separately.
+
+### What unload will not mean
+
+It will not mean unimporting the module.  Python cannot reliably drop one:
+`sys.modules`, surviving references, and C-extension state all outlast the
+attempt.  Unload means deactivate, tear down, and drop the instance; a
+later load constructs a fresh instance from the module that is still
+imported.
+
+Reloading *edited* code in a running pilot is a different and harder
+problem.  It is worth wanting, and it should not be folded into this one.
+
+### Stages 7 to 9
+
+**Stage 7, total teardown.**  Extend stage 2's `teardown` from menu ids to
+the whole list above, add the inert-after-unload guard, and prove it with a
+cycle test: build the bar, tear every feature down, assert that the menu
+model is empty and that no dock widget, sub-window, timer, or thread
+survives, then rebuild and assert the bar is identical to the first one.
+That test is the canary for the entire phase, and it can be written before
+any loading exists.
+
+**Stage 8, activation in the registry.**  Load and unload at run time in
+dependency order, with a decided policy for dependents, plus the UI to
+drive it, which is itself a feature.
+
+**Stage 9, discovery.**  A manifest or entry-point catalog, and lazy
+import.
+
+Each of these is larger than anything in stages 1 to 6 and deserves its own
+devplan.  The purpose of this section is to make sure the near-term stages
+are chosen with the requirement in view, not to specify the work.
+
+### The name, once more
+
+Runtime load and unload of in-tree features does not by itself make them
+plug-ins, so the recommendation stands: keep `PilotFeature` through phase
+A.  Phase B is the trigger.  If features start shipping from outside the
+tree, with authors who are not us, `PilotPlugin` becomes the honest name
+and the rename belongs to that change.  Renaming twenty classes earlier
+would be paying for a capability that has not landed.
+
 ## Out of scope
 
 - The C++ side.  `RMenuModel`, `RShortcutManager`, and the keymap are
@@ -574,6 +715,10 @@ out identical: same ids, same paths, same weights, same shortcuts.  Stages
 4 and 5 add headless tests for the new role bases under
 `QT_QPA_PLATFORM=offscreen`; stage 6 adds the first tests that construct a
 feature without a live manager.
+
+The build-teardown-rebuild cycle test described in stage 7 is the contract
+for the future phase, and it is worth writing as soon as stage 2 lands: a
+teardown that is not exercised is a teardown that does not work.
 
 ## Status
 
