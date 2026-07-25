@@ -396,7 +396,8 @@ Method[^templatemethod] for the lifecycle hooks, a
 Registry[^poeaa-registry] for the controller's table, and the Interface
 Segregation Principle[^isp] for the role split.  "Appendix: the patterns
 behind the proposal" explains each one, says which part of the code it
-lands on, and names the two patterns this proposal deliberately declines.
+lands on, and names the two the plan defers to the runtime load and unload
+phase rather than adopts now.
 
 ```python
 class PilotFeature(QtCore.QObject):
@@ -478,10 +479,13 @@ The alternatives, and why each loses:
 - `PilotFeatureBase`.  Explicit about being a base.  Loses because a
   `Base` suffix is noise that every base class would then have to carry.
 
-There is one condition under which the name should change: if the stage-3
-registry ever grows into out-of-tree discovery, in the napari or VS Code
-direction, then `PilotPlugin` becomes the accurate name and the rename
-belongs to that change, not before it.
+There is one condition under which the name should change, and it is now on
+the roadmap rather than hypothetical: if the registry grows out-of-tree
+discovery (phase B of "Future: loading and unloading features at run
+time"), `PilotPlugin` becomes the accurate name.  Even then the rename
+belongs to that change and not to this one.  Runtime load and unload of
+in-tree features, phase A on its own, does not make a feature a plug-in,
+and renaming twenty classes ahead of the capability buys nothing.
 
 Two renames nearby do pay, and both are about saying the role out loud.
 
@@ -549,13 +553,20 @@ because the roles do share real behaviour once stages 4 and 5 exist, and
 because `@Slot` needs a `QObject` somewhere.
 
 **Go straight to a declarative manifest.**  It is where napari and VS Code
-landed, and it would subsume stages 3 to 5.  Rejected as a first step: it
-is a large change for in-tree features that are all imported anyway, and
-the registry in stage 3 is a compatible intermediate point.
+landed, and it would subsume stages 3 to 5.  Rejected as a first step, not
+as a destination: it is a large change for in-tree features that are all
+imported anyway, and the stage-3 registry is the compatible intermediate
+point.  It returns as phase B.
 
-**Dynamic plug-in loading (entry points, external packages).**  Out of
-scope.  Nothing in the current code base asks for third-party pilot
-features, and the cost is high.
+**Start from the runtime loading requirement and design the whole plug-in
+system now.**  Tempting, because that requirement is real and it is where
+the pilot is going.  Rejected because the near-term stages are its
+prerequisites, not a detour around it: unloading is teardown, and teardown
+has to be declared (stage 2), owned by something that knows the dependency
+order (stage 3), and small enough per role to be complete (stages 4 and 5)
+before anything can safely be dropped at run time.  Designing the loader
+first would be designing on top of features that cannot yet let go of their
+menu entries, docks, timers, threads, and connections.
 
 **Leave it as it is.**  Defensible while the pilot is a prototype bench,
 which is what the class was built for.  The argument against is the
@@ -812,29 +823,39 @@ sound, and the proposal changes none of it; it is listed here so the
 appendix covers the whole picture rather than only the parts under
 revision.
 
-### Not adopted: Component Configurator
+### Deferred: Component Configurator
 
 *Allow an application to link and unlink component implementations at run
 time without modifying, recompiling, or relinking it.*[^posa2]  This is the
-pattern that a full plug-in system implements, and Qt Creator's `IPlugin`
+pattern a full plug-in system implements, and Qt Creator's `IPlugin`
 lifecycle is a direct descendant of it.
 
-The proposal takes the lifecycle vocabulary from that family (a declared
-initialise and a declared teardown) without taking the dynamic linking.
-Pilot features are in-tree, imported at start-up, and known at build time.
-Adopting the full pattern would buy nothing today and would cost a
-discovery mechanism, a versioning story, and a stable public API for
-third-party authors.
+This is where the pilot is going, not a pattern the plan rejects.  Stages 1
+to 6 take the lifecycle vocabulary (a declared initialisation and a
+declared teardown) and leave the dynamic part for phase A of "Future:
+loading and unloading features at run time".  The order matters more than
+it might look: the pattern's value is entirely in the teardown half, and a
+teardown that was never specified, never exercised, and never made total is
+where an unload-capable design fails.  Stages 2 and 7 are that work.
 
-### Not adopted: declarative manifest
+What the plan still does not take from the pattern is dynamic linking of
+implementations, which the appendix entry below covers.
+
+### Deferred: declarative manifest
 
 napari's npe2 and VS Code's contribution points move the declaration of
 what a feature contributes out of Python and into data, which is what makes
-lazy activation possible.[^npe2]  It is the natural continuation of stage
-3, and the stage-3 table is deliberately shaped so it could become one, but
-it is not proposed now: every pilot feature is imported at start-up anyway,
-so the benefit would be structural tidiness bought with a schema, a loader,
-and a migration of twenty features.
+lazy activation possible.[^npe2]  This is phase B: it is what a pilot has
+to have before it can load a feature that was not built at start-up,
+because the catalog must be readable without importing the code it
+describes.
+
+It stays out of the near-term stages because it buys nothing until phase A
+exists.  Every pilot feature is imported at start-up today, so a manifest
+now would cost a schema, a loader, and a migration of twenty features to
+gain structural tidiness.  The stage-3 registry is shaped so it can later
+be fed from a manifest rather than from a table in Python, which is the
+cheapest thing that can be done for phase B before phase B starts.
 
 ## Appendix: chat history
 
@@ -853,6 +874,13 @@ pointer to it at the head of "Target shape".  And evaluate whether
 `PilotFeature` is a good name, with a replacement if it is not, which is
 "Is `PilotFeature` a good name?".  The verdict there is to keep the name
 and rename the module and the subclasses instead.
+
+A third prompt stated a requirement the first draft did not have: the pilot
+will need to load and unload features at run time.  That became "Future:
+loading and unloading features at run time", and it turned the two patterns
+the draft had declined, Component Configurator and the declarative
+manifest, into deferred phases with the near-term stages as their
+prerequisites.
 
 [^qtc-lifecycle]: Qt Creator, *Plugin Life Cycle*, Extending Qt Creator
     Manual. https://doc.qt.io/qtcreator-extending/plugin-lifecycle.html
