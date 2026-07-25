@@ -32,9 +32,14 @@ Three conclusions:
    a feature today means editing `_gui.py` in four places, in an order that
    is load-bearing and undocumented.
 
-The rest of this page is the evidence, the outside comparison, and a
-six-stage plan whose first three stages are mechanical and independently
-landable.
+The name itself is worth keeping.  `PilotFeature` stutters against the
+package it lives in, but "feature" would be ambiguous in a mesh library
+without the qualifier, and the two names that do mislead are the
+`_gui_common` module and several of the subclasses.
+
+The rest of this page is the evidence, the outside comparison, a six-stage
+plan whose first two stages are mechanical and independently landable, and
+an appendix naming the design patterns each stage draws on.
 
 ## What the class is today
 
@@ -378,6 +383,14 @@ keeps the tree green.
 
 ### Target shape
 
+Nothing here is invented.  The shape is four named patterns put together:
+a Layer Supertype[^layersupertype] for the feature layer, Template
+Method[^templatemethod] for the lifecycle hooks, a
+Registry[^poeaa-registry] for the controller's table, and the Interface
+Segregation Principle[^isp] for the role split.  "Appendix: the patterns
+behind the proposal" explains each one, says which part of the code it
+lands on, and names the two patterns this proposal deliberately declines.
+
 ```python
 class PilotFeature(QtCore.QObject):
     """A pilot feature: a unit of GUI contributed to the main window."""
@@ -421,6 +434,70 @@ class PanelFeature(PilotFeature):
 
 `add_action` records each id it places, which makes `teardown` free and
 gives the C++ `reset` path a Python counterpart.
+
+### Is `PilotFeature` a good name?
+
+Mostly yes, and it should stay.  The naming defects in this area are next
+to the class, not in it.
+
+The case against the name is the stutter.  The class lives in
+`solvcon.pilot`, so `pilot.base.PilotFeature` repeats a word the namespace
+already supplies, which is the repetition Go's package-naming guidance
+warns about and Python's namespaces make just as unnecessary.[^gonames]
+
+Three things outweigh it.  First, "feature" is loaded vocabulary in a mesh
+library: a feature edge, a feature angle, feature detection.  A bare
+`Feature` exported from a CFD code base invites exactly that misreading,
+and this class is exported (it is in `solvcon.pilot.base.__all__`).  The
+qualifier is doing real work.  Second, comparable projects prefix the same
+way for the same reason: Spyder's base class is `SpyderPluginV2`, KDE's is
+`KXmlGuiClient`, and Qt's is `QWidget`.  Third, "feature" is honest about
+what these objects are.  They are in-tree units of application
+functionality that are always constructed, not units that are discovered
+and loaded.
+
+The alternatives, and why each loses:
+
+- `Feature`.  No stutter, and it reads well as `_feature.Feature`.  Loses on
+  the mesh-feature collision in the exported namespace.
+- `PilotPlugin`.  Names the pattern and matches `IPlugin` and
+  `SpyderPluginV2`.  Loses because it promises discovery and third-party
+  loading that the pilot does not do, and a name that promises what the
+  code does not deliver is worse than a vague one.
+- `PilotExtension`.  A softer version of the same idea.  Loses because
+  "extension" already means the `_solvcon` C++ extension module here.
+- `PilotComponent`.  Neutral and makes no false promise.  Loses because it
+  says nothing; "component" is the vaguest word available.
+- `PilotFeatureBase`.  Explicit about being a base.  Loses because a
+  `Base` suffix is noise that every base class would then have to carry.
+
+There is one condition under which the name should change: if the stage-3
+registry ever grows into out-of-tree discovery, in the napari or VS Code
+direction, then `PilotPlugin` becomes the accurate name and the rename
+belongs to that change, not before it.
+
+Two renames nearby do pay, and both are about saying the role out loud.
+
+**The module.**  `_gui_common.py` holds 2-D overlay label helpers, the
+toggle-to-action bridge, the shortcut applier, the action builder, and the
+base class.  "Common" tells a reader nothing about any of them, and a
+module named for what it is not (not specific to anything) is where
+unrelated code accumulates.[^gonames]  Split it along the seams that are
+already there: `_feature.py` for the base class and the role bases,
+`_action.py` for `build_action`, `apply_shortcut`, and
+`ToggleActionBridge`, and `_overlay.py` for the two label helpers, whose
+only callers are the canvas dialog and the tree panel.
+
+**The subclasses.**  The feature names do not say their role, and after the
+role split they should.  `Painter` is a dock panel.  `Canvas` is a menu
+provider; the thing that actually is a canvas is `R2DWidget`.  `Profiling`
+and `RunProfiling` are two dialogs named as a noun and a verb phrase.
+`SampleMeshFeature` is the only class carrying the base class's word, and
+it is one of the three that contribute no menu of their own.  The
+convention worth adopting with stages 4 and 5: name a feature for its role,
+`<Thing>Panel`, `<Thing>Dialog`, or `<Thing>Menu`, and reserve a plain
+`<Thing>Feature` for one that only provides entries to another feature's
+menu.
 
 ### Stages
 
@@ -504,14 +581,133 @@ Report only.  No code change is proposed for review yet; this page is the
 argument for the staged plan above, to be accepted, amended, or declined
 before any stage is started.
 
+## Appendix: the patterns behind the proposal
+
+Each pattern below is named where the proposal uses it, with what it says,
+where it lands in the pilot, and what it does not solve.  The last two are
+patterns this plan declines, recorded so a later reader does not have to
+rediscover why.
+
+### Layer Supertype
+
+*A type that acts as the supertype for all types in its
+layer.*[^layersupertype]  Fowler's remedy for behaviour that would
+otherwise be duplicated across every object in one layer: move it into one
+superclass for that layer, and keep that superclass small, because it holds
+only what is common to the layer.
+
+This is what `PilotFeature` already is, and naming it explains both its
+virtue and its problem.  A Layer Supertype is defined by the layer, so the
+first question it forces is what the pilot's feature layer actually is.
+The answer today is four different things (F5), which is why the single
+supertype holds so little: everything specific to a role had nowhere to go
+but the subclasses, where it was copied.  The proposal keeps the pattern
+and repairs the premise, one thin supertype for what is genuinely common
+plus one per role.
+
+The pattern also warns against the opposite failure.  A Layer Supertype
+that grows past the layer's common behaviour becomes the god base class,
+so `PilotFeature` should stay at roughly the size shown in "Target shape",
+and anything used by only some features belongs in a role base or a
+collaborator.
+
+### Template Method
+
+*Define the skeleton of an algorithm in a base class and let subclasses
+override individual steps without changing the structure.*[^templatemethod]
+
+The controller's build sequence is a template method spread across two
+classes: the order (construct all, then populate all, then seed the
+console) is fixed by the controller, and the step each feature fills in is
+`populate_menu`.  The pattern's precondition is the part that is missing:
+the base class must declare the steps.  A template method whose hooks are
+undeclared is not a pattern, it is a convention, and finding F1 is exactly
+what that costs.  Stage 2 declares `populate_menu` and `teardown` with
+default bodies; stage 4 adds `build_panel` for the panel role, which is a
+template method in the narrow sense, called once, lazily, by base-class
+code the subclass does not touch.
+
+### Registry
+
+*A well-known object that other objects can use to find common objects and
+services.*[^poeaa-registry]  Fowler's own caution about it is the relevant
+part: a Registry is a global, and a global that can hand out anything is
+how a design ends up with the Service Locator problem of F3.[^fowler-di]
+
+Stage 3 uses the pattern in its narrow, safe form.  The registry holds
+construction data (attribute name, class, dependencies) and is read by one
+client, the controller, at build time.  It is not a lookup path for
+features to reach each other at run time; if it became one, it would
+recreate `mgr`'s problem one level up.  Cross-feature wiring stays explicit
+and stays at construction, which is what Spyder's `REQUIRES` plus
+`@on_plugin_available` also achieves.[^spyder]
+
+### Interface Segregation Principle
+
+*Clients should not be forced to depend on methods they do not
+use.*[^isp]  Martin's fat-interface argument is usually applied to
+interfaces; it applies to an inherited base just as directly, because a
+subclass depends on everything its base offers.
+
+`Naca4Airfoil`, at 31 lines and no menu of its own, currently inherits the
+same surface as `OneDimBaseApp` at 368 lines with timers and solver
+configuration.  Neither is served well.  Stages 4 and 5 segregate the two
+fat roles (dock panel, file dialog) into their own bases, so a feature
+depends on the lifecycle it actually has.
+
+### Command, already in place
+
+`QAction` is the Command pattern: a request packaged as an object, so the
+menu, the toolbar, and the keyboard can all invoke the same thing without
+knowing what it does.[^command]  `RMenuModel` is the container that places
+those commands and looks them up by id, and `RShortcutManager` binds them
+to key sequences, which is the same split Qt Creator draws between
+`Command` and `ActionContainer`.[^qtc-actions]  This half of the design is
+sound, and the proposal changes none of it; it is listed here so the
+appendix covers the whole picture rather than only the parts under
+revision.
+
+### Not adopted: Component Configurator
+
+*Allow an application to link and unlink component implementations at run
+time without modifying, recompiling, or relinking it.*[^posa2]  This is the
+pattern that a full plug-in system implements, and Qt Creator's `IPlugin`
+lifecycle is a direct descendant of it.
+
+The proposal takes the lifecycle vocabulary from that family (a declared
+initialise and a declared teardown) without taking the dynamic linking.
+Pilot features are in-tree, imported at start-up, and known at build time.
+Adopting the full pattern would buy nothing today and would cost a
+discovery mechanism, a versioning story, and a stable public API for
+third-party authors.
+
+### Not adopted: declarative manifest
+
+napari's npe2 and VS Code's contribution points move the declaration of
+what a feature contributes out of Python and into data, which is what makes
+lazy activation possible.[^npe2]  It is the natural continuation of stage
+3, and the stage-3 table is deliberately shaped so it could become one, but
+it is not proposed now: every pilot feature is imported at start-up anyway,
+so the benefit would be structural tidiness bought with a schema, a loader,
+and a migration of twenty features.
+
 ## Appendix: chat history
 
 The review was requested in one prompt: the author pointed at the
 `PilotFeature` class in `solvcon/pilot/base/_gui_common.py`, said they were
 not sure the design is good, and asked for online research and a devplan
-report.  Everything in "Findings" is read out of the tree at that commit;
+report.  That produced the findings, the outside comparison, and the staged
+proposal.  Everything in "Findings" is read out of the tree at that commit;
 everything in "How comparable applications solve this" is from the sources
 below.
+
+Review of the first draft asked for two additions.  Name the existing
+design patterns the proposed shape draws on, cite them, and explain them in
+an appendix, which is "Appendix: the patterns behind the proposal" and the
+pointer to it at the head of "Target shape".  And evaluate whether
+`PilotFeature` is a good name, with a replacement if it is not, which is
+"Is `PilotFeature` a good name?".  The verdict there is to keep the name
+and rename the module and the subclasses instead.
 
 [^qtc-lifecycle]: Qt Creator, *Plugin Life Cycle*, Extending Qt Creator
     Manual. https://doc.qt.io/qtcreator-extending/plugin-lifecycle.html
@@ -527,6 +723,38 @@ below.
 
 [^npe2]: napari, *Migration to npe2* and the npe2 manifest specification.
     https://napari.org/dev/plugins/advanced_topics/npe2_migration_guide.html
+
+[^layersupertype]: Martin Fowler, *Layer Supertype*, Patterns of Enterprise
+    Application Architecture catalog.
+    https://martinfowler.com/eaaCatalog/layerSupertype.html
+
+[^poeaa-registry]: Martin Fowler, *Registry*, Patterns of Enterprise
+    Application Architecture catalog.
+    https://martinfowler.com/eaaCatalog/registry.html
+
+[^templatemethod]: Gamma, Helm, Johnson, and Vlissides, *Design Patterns*,
+    1994, Template Method.  Summary at
+    https://refactoring.guru/design-patterns/template-method
+
+[^command]: Gamma, Helm, Johnson, and Vlissides, *Design Patterns*, 1994,
+    Command.  Summary at https://refactoring.guru/design-patterns/command
+
+[^isp]: Robert C. Martin, *The Interface Segregation Principle*, C++
+    Report, 1996.
+    https://web.archive.org/web/20150905081110/http://www.objectmentor.com/resources/articles/isp.pdf
+
+[^posa2]: Schmidt, Stal, Rohnert, and Buschmann, *Pattern-Oriented Software
+    Architecture, Volume 2*, 2000, Component Configurator.
+    https://www.dre.vanderbilt.edu/~schmidt/POSA/POSA2/
+
+[^fowler-di]: Martin Fowler, *Inversion of Control Containers and the
+    Dependency Injection pattern*, 2004, which introduces the Plugin
+    pattern and Service Locator side by side.
+    https://martinfowler.com/articles/injection.html
+
+[^gonames]: The Go Blog, *Package names*, on avoiding repetition between a
+    package name and its contents, and on `util`, `common`, and `misc` as
+    package names. https://go.dev/blog/package-names
 
 [^ploeh]: Mark Seemann, *Service Locator is an Anti-Pattern*, 2010.
     https://blog.ploeh.dk/2010/02/03/ServiceLocatorisanAnti-Pattern/
