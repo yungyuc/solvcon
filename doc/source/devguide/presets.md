@@ -19,6 +19,20 @@ A preset that names a toolchain the current host cannot run carries a
 the make targets described in {doc}`/start/build_solvcon` remain the primary
 entry point.
 
+Each configure preset comes with three build presets, one per thing that is
+actually built:
+
+| Build preset          | Targets                            |
+|:----------------------|:-----------------------------------|
+| `<preset>`            | the extension module and the pilot |
+| `<preset>-module`     | the extension module alone         |
+| `<preset>-gtest`      | the C++ gtest binary               |
+
+`cmake --build --preset <name>` therefore needs no `--target` argument.  The
+build tree is `build/<configure preset>`, named through the `${presetName}`
+macro so that a preset inheriting another gets its own tree rather than
+writing into its parent's.
+
 ## Machine paths belong in `CMakeUserPresets.json`
 
 Three cache variables name directories that exist on one machine only:
@@ -41,8 +55,9 @@ Copy the template and edit the paths:
 cp contrib/cmake/CMakeUserPresets.json.example CMakeUserPresets.json
 ```
 
-The template defines one configure preset and one build preset, both named
-`local`, that inherit a checked-in preset and add the three variables:
+The template defines a configure preset named `local` that inherits a
+checked-in preset and adds the three variables, plus the three build presets
+that go with it:
 
 ```json
 {

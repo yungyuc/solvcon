@@ -113,7 +113,44 @@ if ($Preset) {
 } else {
     $presetName = if ($BuildType -eq 'Debug') { 'win-dbg' } else { 'win-rel' }
 }
-$bld = Join-Path $Repo "build\$presetName"
+
+function Get-ConfigurePresetBinaryDir {
+    # The binary directory a configure preset states, resolved through
+    # inherits.  Reading it beats recomputing "build\<preset>": the presets
+    # are free to name their build trees, and a user preset that inherits one
+    # of them gets its own.
+    param([string]$Root, [string]$Name)
+    $presets = @{}
+    foreach ($file in @('CMakePresets.json', 'CMakeUserPresets.json')) {
+        $path = Join-Path $Root $file
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $doc = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        if (-not $doc.PSObject.Properties['configurePresets']) { continue }
+        foreach ($entry in $doc.configurePresets) { $presets[$entry.name] = $entry }
+    }
+    # Depth-first through inherits, nearest definition wins, as CMake resolves
+    # it.
+    function Find-BinaryDir {
+        param([string]$Name)
+        $entry = $presets[$Name]
+        if (-not $entry) { return $null }
+        if ($entry.PSObject.Properties['binaryDir']) { return $entry.binaryDir }
+        if ($entry.PSObject.Properties['inherits']) {
+            foreach ($parent in @($entry.inherits)) {
+                $found = Find-BinaryDir $parent
+                if ($found) { return $found }
+            }
+        }
+        return $null
+    }
+    $raw = Find-BinaryDir $Name
+    if (-not $raw) { throw "preset '$Name' states no binaryDir" }
+    $raw = $raw.Replace('${sourceDir}', $Root).Replace('${presetName}', $Name)
+    if ($raw -match '\$\{') { throw "unsupported macro in binaryDir '$raw'" }
+    return $raw.Replace('/', '\')
+}
+
+$bld = Get-ConfigurePresetBinaryDir $Repo $presetName
 $solvconDir = Join-Path $Repo 'solvcon'
 
 # --- MSVC environment -------------------------------------------------------
@@ -236,18 +273,27 @@ try {
     & $cmake --preset $presetName @extra
     Assert-LastExit 'cmake configure'
 
-    $targets = @('_solvcon')
-    if (-not $NoQt) { $targets += 'pilot' }
-    if ($Gtest) { $targets += 'test_nopython' }
-    Write-Host "building targets: $($targets -join ', ')"
-    & $cmake --build --preset $presetName --target @targets
-    Assert-LastExit 'cmake build'
+    # The build presets carry the target lists: <preset> builds the module and
+    # the pilot, <preset>-module the module alone, <preset>-gtest the C++ test
+    # binary.
+    $buildPresets = @()
+    if ($NoQt) {
+        $buildPresets += "$presetName-module"
+    } else {
+        $buildPresets += $presetName
+    }
+    if ($Gtest) { $buildPresets += "$presetName-gtest" }
+    foreach ($buildPreset in $buildPresets) {
+        Write-Host "building preset: $buildPreset"
+        & $cmake --build --preset $buildPreset
+        Assert-LastExit "cmake build --preset $buildPreset"
+    }
 } finally {
     Pop-Location
 }
 
 # _solvcon.pyd is a LIBRARY artifact (-> solvcon\, per the preset); pilot.exe is
-# a RUNTIME artifact (-> the preset's binary dir, build\$presetName).
+# a RUNTIME artifact (-> the binary directory the preset states, read above).
 # Copy the module to the repo root as the top-level _solvcon: solvcon.core
 # imports it there first, and the tests' qualified type names assume that name.
 $pyd = Get-ChildItem -LiteralPath $solvconDir -Filter '_solvcon*.pyd' |

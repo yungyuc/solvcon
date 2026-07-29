@@ -39,15 +39,20 @@
       "hidden": true,
       "inherits": "base",
       "generator": "Ninja",
-      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot. BLA_VENDOR names the BLAS that the Windows dependency prefix ships; it steers only the find_package(LAPACK) fallback, and a build that sets SOLVCON_USE_MKL, as both Windows CI jobs do, never reaches that fallback. The CLion vendor entry is repeated from base because an inherited vendor map is replaced by the child's rather than merged with it.",
+      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot. BLA_VENDOR names the BLAS that the Windows dependency prefix ships; it steers only the find_package(LAPACK) fallback, and a build that sets SOLVCON_USE_MKL, as both Windows CI jobs do, never reaches that fallback. The CLion vendor entry is repeated from base because an inherited vendor map is replaced by the child's rather than merged with it. Both the build tree and CMAKE_RUNTIME_OUTPUT_DIRECTORY, which is where pilot.exe lands, are named after the preset: ${presetName} expands to the preset actually selected, so one build tree per preset falls out and an inheriting preset does not write into its parent's.",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "BUILD_QT": { "type": "BOOL", "value": "ON" },
-        "BLA_VENDOR": { "type": "STRING", "value": "OpenBLAS" }
+        "BLA_VENDOR": { "type": "STRING", "value": "OpenBLAS" },
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
+          "type": "PATH",
+          "value": "${sourceDir}/build/${presetName}"
+        }
       },
       "vendor": {
         "jetbrains.com/clion": { "enablePythonIntegration": true },
@@ -62,14 +67,8 @@
       "inherits": "win-base",
       "displayName": "Windows Release (Ninja, MSVC)",
       "description": "Optimized _solvcon and pilot built with MSVC through Ninja.",
-      "binaryDir": "${sourceDir}/build/win-rel",
-      "$comment": "CMAKE_RUNTIME_OUTPUT_DIRECTORY keeps pilot.exe at the top of the build tree, where build.ps1 and the documentation look for it.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" },
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
-          "type": "PATH",
-          "value": "${sourceDir}/build/win-rel"
-        }
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" }
       }
     },
     {
@@ -77,14 +76,8 @@
       "inherits": "win-base",
       "displayName": "Windows Debug (Ninja, MSVC)",
       "description": "Debuggable _solvcon and pilot built with MSVC through Ninja.",
-      "binaryDir": "${sourceDir}/build/win-dbg",
-      "$comment": "CMAKE_RUNTIME_OUTPUT_DIRECTORY keeps pilot.exe at the top of the build tree, where build.ps1 and the documentation look for it.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Debug" },
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
-          "type": "PATH",
-          "value": "${sourceDir}/build/win-dbg"
-        }
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Debug" }
       }
     }
   ],
@@ -92,7 +85,7 @@
     {
       "name": "win-base",
       "hidden": true,
-      "$comment": "A build preset does not inherit the condition of its configure preset, so the host filter is restated here to keep the Windows entries out of the listing and the preset pickers on other hosts.",
+      "$comment": "A build preset does not inherit the condition of its configure preset, so the host filter is restated here to keep the Windows entries out of the listing and the preset pickers on other hosts. Each configure preset gets three build presets, one per thing a person builds: the module with the pilot, the module alone, and the C++ test binary. Parallelism is left unstated: Ninja already scales to the host, and the only place a cap is wanted is a CI runner.",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -109,14 +102,48 @@
       "inherits": "win-base",
       "configurePreset": "win-rel",
       "displayName": "Windows Release",
-      "description": "Build the Windows Release configuration."
+      "description": "Build the extension module and the pilot, Release.",
+      "targets": ["_solvcon", "pilot"]
+    },
+    {
+      "name": "win-rel-module",
+      "inherits": "win-base",
+      "configurePreset": "win-rel",
+      "displayName": "Windows Release, module only",
+      "description": "Build the extension module alone, Release.",
+      "targets": ["_solvcon"]
+    },
+    {
+      "name": "win-rel-gtest",
+      "inherits": "win-base",
+      "configurePreset": "win-rel",
+      "displayName": "Windows Release, C++ test binary",
+      "description": "Build the C++ gtest binary, Release.",
+      "targets": ["test_nopython"]
     },
     {
       "name": "win-dbg",
       "inherits": "win-base",
       "configurePreset": "win-dbg",
       "displayName": "Windows Debug",
-      "description": "Build the Windows Debug configuration."
+      "description": "Build the extension module and the pilot, Debug.",
+      "targets": ["_solvcon", "pilot"]
+    },
+    {
+      "name": "win-dbg-module",
+      "inherits": "win-base",
+      "configurePreset": "win-dbg",
+      "displayName": "Windows Debug, module only",
+      "description": "Build the extension module alone, Debug.",
+      "targets": ["_solvcon"]
+    },
+    {
+      "name": "win-dbg-gtest",
+      "inherits": "win-base",
+      "configurePreset": "win-dbg",
+      "displayName": "Windows Debug, C++ test binary",
+      "description": "Build the C++ gtest binary, Debug.",
+      "targets": ["test_nopython"]
     }
   ]
 }
