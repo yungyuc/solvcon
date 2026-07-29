@@ -6,10 +6,10 @@
   "configurePresets": [
     {
       "name": "local",
-      "inherits": "win-rel",
+      "inherits": "dev-rel",
       "displayName": "Local dependency prefix",
       "description": "A checked-in preset plus the paths of a local dependency prefix.",
-      "$comment": "Change inherits to the preset you build. Only presets whose condition holds on this host are offered, so a preset for another host cannot be inherited into a usable one. The build tree is named after the preset, so this one gets build/local rather than sharing its parent's. PYTHON_EXECUTABLE is the interpreter the extension is built against; pybind11_path is what python3 -m pybind11 --cmakedir prints for it; CMAKE_PREFIX_PATH is where Qt6, PySide6, and the rest of the prefix live. In CLion the jetbrains.com/clion vendor key enablePythonIntegration, already set in the checked-in presets, supplies PYTHON_EXECUTABLE from the IDE's selected interpreter, so that one line can be dropped.",
+      "$comment": "Change inherits to the preset you build; a Windows build inherits win-rel and the win-rel-* build presets instead. Only presets whose condition holds on this host are offered, so a preset for another host cannot be inherited into a usable one. The build tree is named after the preset, so this one gets build/local rather than sharing its parent's. PYTHON_EXECUTABLE is the interpreter the extension is built against; pybind11_path is what python3 -m pybind11 --cmakedir prints for it; CMAKE_PREFIX_PATH is where Qt6, PySide6, and the rest of the prefix live. In CLion the jetbrains.com/clion vendor key enablePythonIntegration, already set in the checked-in presets, supplies PYTHON_EXECUTABLE from the IDE's selected interpreter, so that one line can be dropped.",
       "cacheVariables": {
         "PYTHON_EXECUTABLE": {
           "type": "FILEPATH",
@@ -23,19 +23,19 @@
   "buildPresets": [
     {
       "name": "local",
-      "inherits": "win-rel",
+      "inherits": "dev-rel",
       "configurePreset": "local",
       "displayName": "Local dependency prefix"
     },
     {
       "name": "local-module",
-      "inherits": "win-rel-module",
+      "inherits": "dev-rel-module",
       "configurePreset": "local",
       "displayName": "Local dependency prefix, module only"
     },
     {
       "name": "local-gtest",
-      "inherits": "win-rel-gtest",
+      "inherits": "dev-rel-gtest",
       "configurePreset": "local",
       "displayName": "Local dependency prefix, C++ test binary"
     }

@@ -17,7 +17,15 @@ cmake --build --preset <name>
 A preset that names a toolchain the current host cannot run carries a
 `condition`, so it does not appear in the listing there.  On Linux and macOS
 the make targets described in {doc}`/start/build_solvcon` remain the primary
-entry point.
+entry point; the presets are what an IDE reads.
+
+| Configure preset | Host          | What it configures                    |
+|:-----------------|:--------------|:--------------------------------------|
+| `dev-rel`        | Linux, macOS  | optimized module and pilot            |
+| `dev-dbg`        | Linux, macOS  | debuggable module and pilot           |
+| `dev-noqt`       | Linux, macOS  | optimized module, no pilot            |
+| `win-rel`        | Windows       | optimized module and pilot, MSVC      |
+| `win-dbg`        | Windows       | debuggable module and pilot, MSVC     |
 
 Each configure preset comes with three build presets, one per thing that is
 actually built:
@@ -29,9 +37,25 @@ actually built:
 | `<preset>-gtest`      | the C++ gtest binary               |
 
 `cmake --build --preset <name>` therefore needs no `--target` argument.  The
-build tree is `build/<configure preset>`, named through the `${presetName}`
-macro so that a preset inheriting another gets its own tree rather than
-writing into its parent's.
+`dev-noqt` preset has no pilot to build, so it has only the plain and `-gtest`
+entries.
+
+The build tree is `build/<configure preset>`, named through the
+`${presetName}` macro so that a preset inheriting another gets its own tree
+rather than writing into its parent's.  It is one tree per preset, which is
+what both IDEs assume, and it is not the Makefile's `build/rel<pyvminor>`, so
+a preset build and a make build never share a cache.  They do share where the
+extension module lands, `solvcon/` and the repository root, so whichever built
+last is the one Python imports.
+
+One consequence is worth knowing.  `_solvcon` is an ABI-tagged extension and
+`PYTHON_EXECUTABLE` is a cache variable, so pointing the same preset at a
+different interpreter reuses a stale cache.  Reconfigure with `--fresh` after
+switching interpreters:
+
+```bash
+cmake --preset dev-rel --fresh
+```
 
 ## Machine paths belong in `CMakeUserPresets.json`
 
@@ -65,7 +89,7 @@ that go with it:
   "configurePresets": [
     {
       "name": "local",
-      "inherits": "win-rel",
+      "inherits": "dev-rel",
       "displayName": "Local dependency prefix",
       "cacheVariables": {
         "PYTHON_EXECUTABLE": {

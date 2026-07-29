@@ -35,6 +35,56 @@
       }
     },
     {
+      "name": "dev-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Ninja",
+      "$comment": "The developer presets for Linux and macOS. The host filter is a notEquals against Windows rather than a list, because CLion accepts only equals and notEquals and would silently ignore anything else. Ninja is already a documented dependency of the development environment (contrib/dependency/build-scdv.sh installs it), and it is what makes an IDE build incremental. These trees are separate from the ones the Makefile builds under build/rel<pyvminor>, so the two never fight over a cache.",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "BUILD_QT": { "type": "BOOL", "value": "ON" }
+      },
+      "vendor": {
+        "jetbrains.com/clion": { "enablePythonIntegration": true },
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": ["Linux", "macOS"]
+        }
+      }
+    },
+    {
+      "name": "dev-rel",
+      "inherits": "dev-base",
+      "displayName": "Developer Release",
+      "description": "Optimized _solvcon and pilot for Linux and macOS.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" }
+      }
+    },
+    {
+      "name": "dev-dbg",
+      "inherits": "dev-base",
+      "displayName": "Developer Debug",
+      "description": "Debuggable _solvcon and pilot for Linux and macOS.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Debug" }
+      }
+    },
+    {
+      "name": "dev-noqt",
+      "inherits": "dev-base",
+      "displayName": "Developer Release, no Qt",
+      "description": "Optimized _solvcon without the pilot, for a headless host.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" },
+        "BUILD_QT": { "type": "BOOL", "value": "OFF" }
+      }
+    },
+    {
       "name": "win-base",
       "hidden": true,
       "inherits": "base",
@@ -82,6 +132,85 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "dev-base",
+      "hidden": true,
+      "$comment": "The module target is _solvcon_py, not _solvcon: it copies the built extension to the repository root under its ABI-tagged name, which is where solvcon.core looks for it first and what the make build produces.",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": ["Linux", "macOS"]
+        }
+      }
+    },
+    {
+      "name": "dev-rel",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release",
+      "description": "Build the extension module and the pilot, Release.",
+      "targets": ["_solvcon_py", "pilot"]
+    },
+    {
+      "name": "dev-rel-module",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release, module only",
+      "description": "Build the extension module alone, Release.",
+      "targets": ["_solvcon_py"]
+    },
+    {
+      "name": "dev-rel-gtest",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release, C++ test binary",
+      "description": "Build the C++ gtest binary, Release.",
+      "targets": ["test_nopython"]
+    },
+    {
+      "name": "dev-dbg",
+      "inherits": "dev-base",
+      "configurePreset": "dev-dbg",
+      "displayName": "Developer Debug",
+      "description": "Build the extension module and the pilot, Debug.",
+      "targets": ["_solvcon_py", "pilot"]
+    },
+    {
+      "name": "dev-dbg-module",
+      "inherits": "dev-base",
+      "configurePreset": "dev-dbg",
+      "displayName": "Developer Debug, module only",
+      "description": "Build the extension module alone, Debug.",
+      "targets": ["_solvcon_py"]
+    },
+    {
+      "name": "dev-dbg-gtest",
+      "inherits": "dev-base",
+      "configurePreset": "dev-dbg",
+      "displayName": "Developer Debug, C++ test binary",
+      "description": "Build the C++ gtest binary, Debug.",
+      "targets": ["test_nopython"]
+    },
+    {
+      "name": "dev-noqt",
+      "inherits": "dev-base",
+      "configurePreset": "dev-noqt",
+      "displayName": "Developer Release, no Qt",
+      "description": "Build the extension module alone, without the pilot.",
+      "targets": ["_solvcon_py"]
+    },
+    {
+      "name": "dev-noqt-gtest",
+      "inherits": "dev-base",
+      "configurePreset": "dev-noqt",
+      "displayName": "Developer Release, no Qt, C++ test binary",
+      "description": "Build the C++ gtest binary, without the pilot.",
+      "targets": ["test_nopython"]
+    },
     {
       "name": "win-base",
       "hidden": true,
