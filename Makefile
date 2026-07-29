@@ -69,8 +69,6 @@ WHICH_PYTHON := $(shell which python3)
 REALPATH_PYTHON := $(realpath $(WHICH_PYTHON))
 export DIRNAME_PYTHON := $(dir $(REALPATH_PYTHON))
 
-pyextsuffix := $(shell if [ -x "$(DIRNAME_PYTHON)/python3-config" ]; then \
-	$(DIRNAME_PYTHON)/python3-config --extension-suffix; fi)
 pyvminor := $(shell python3 -c 'import sys; print("%d%d" % sys.version_info[0:2])')
 
 ifeq ($(CMAKE_BUILD_TYPE), Debug)
@@ -312,14 +310,17 @@ pyformat:
 format: pyformat
 	@$(MAKE) FORCE_CLANG_FORMAT=inplace cformat
 
+# The extension suffix is computed by cpp/binary/pymod_solvcon/CMakeLists.txt,
+# so the removal goes through its target rather than recomputing the suffix.
+# A tree that was never configured has no target to call and nothing to remove.
 .PHONY: clean
 clean:
-	rm -f $(SOLVCON_ROOT)/solvcon/_solvcon$(pyextsuffix)
-	rm -f $(SOLVCON_ROOT)/_solvcon$(pyextsuffix)
+	cmake --build $(BUILD_PATH) --target remove_solvcon_py
 	make -C $(BUILD_PATH) clean
 
 .PHONY: cmakeclean
 cmakeclean:
-	rm -f $(SOLVCON_ROOT)/solvcon/_solvcon$(pyextsuffix)
-	rm -f $(SOLVCON_ROOT)/_solvcon$(pyextsuffix)
+	@if [ -f $(BUILD_PATH)/CMakeCache.txt ]; then \
+		cmake --build $(BUILD_PATH) --target remove_solvcon_py; \
+	fi
 	rm -rf $(BUILD_PATH)

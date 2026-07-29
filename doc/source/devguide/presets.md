@@ -48,6 +48,20 @@ a preset build and a make build never share a cache.  They do share where the
 extension module lands, `solvcon/` and the repository root, so whichever built
 last is the one Python imports.
 
+Test presets run the suites CTest has registered.  There is one per configure
+preset, plus label-filtered ones on `dev-rel`:
+
+```sh
+ctest --preset dev-rel            # every suite
+ctest --preset dev-rel-cpp        # the C++ cases alone
+ctest --preset dev-rel-python     # the Python suite alone
+ctest --preset dev-rel-pilot      # the Python suite inside the pilot binary
+```
+
+CLion reads no test presets, so a CLion user reaches the same suites through
+its CTest integration against the configured build tree.  That works because
+the suites are registered with `add_test()`, not because a preset names them.
+
 One consequence is worth knowing.  `_solvcon` is an ABI-tagged extension and
 `PYTHON_EXECUTABLE` is a cache variable, so pointing the same preset at a
 different interpreter reuses a stale cache.  Reconfigure with `--fresh` after

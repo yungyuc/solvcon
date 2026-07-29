@@ -6,6 +6,10 @@ project(solvcon)
 
 cmake_policy(SET CMP0148 OLD)
 
+# Called at the top level so that CTest covers every suite, not only the C++
+# cases that gtests/ discovers.
+enable_testing()
+
 # The Python, Qt6, and PySide6 that MSVC links ship release binaries only, so a
 # Debug build must match their runtime and configuration or it corrupts the heap
 # (issue #1058). Both default on; turn one off to link debug dependencies when
@@ -335,5 +339,7 @@ message(STATUS "USE_GOOGLETEST: ${USE_GOOGLETEST}")
 if(USE_GOOGLETEST)
 add_subdirectory(gtests)
 endif() # USE_GOOGLETEST
+
+add_subdirectory(tests)
 
 # vim: set ff=unix fenc=utf8 nobomb et sw=4 ts=4 sts=4:

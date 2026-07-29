@@ -20,6 +20,31 @@ After `make gtest` has built the binary, a single C++ test can be run directly:
 
 where `<pyvminor>` is the active Python major and minor version, e.g. `314`.
 
+## Through CTest
+
+Every suite is also registered with CTest, so `ctest` runs the C++ cases, the
+Python suite, and the pilot suite from one command against a configured build
+tree.  This is what an IDE drives, and it is how the C++ cases become
+individually selectable.
+
+```sh
+ctest --preset dev-rel            # every suite
+ctest --preset dev-rel-cpp        # the C++ cases alone
+ctest --preset dev-rel-python     # the Python suite alone
+ctest --preset dev-rel-pilot      # the Python suite inside the pilot binary
+```
+
+The presets are described in {doc}`/devguide/presets`.  Against a build tree
+that was configured without one, the same selection is `ctest -L cpp`,
+`ctest -L python`, or `ctest -L pilot` from inside the tree.
+
+The C++ cases are registered by `gtest_discover_tests`, which enumerates them
+by running the built binary, so `test_nopython` has to be built before `ctest`
+can see them.  The `<preset>-gtest` build preset builds it.
+
+`make pytest` and `make run_pilot_pytest` are unchanged and remain the way to
+forward `PYTEST_OPTS` to a subset.
+
 ## Automatic Testing on GitHub Actions
 
 Continuous integration runs on GitHub Actions. The workflows live in

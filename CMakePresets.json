@@ -274,5 +274,97 @@
       "description": "Build the C++ gtest binary, Debug.",
       "targets": ["test_nopython"]
     }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "$comment": "Test presets are read by the command line, by CI, and by VS Code, but not by CLion, where the suites are reached through the CTest integration against the configured build directory instead. That is what the add_test registrations in tests/CMakeLists.txt buy: ctest covers the C++ cases, the Python suite, and the pilot suite everywhere, with or without a preset.",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "dev-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "dev-rel",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release, every suite",
+      "description": "Run the C++, Python, and pilot suites."
+    },
+    {
+      "name": "dev-rel-cpp",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release, C++ suite",
+      "description": "Run the C++ cases alone.",
+      "filter": { "include": { "label": "cpp" } }
+    },
+    {
+      "name": "dev-rel-python",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release, Python suite",
+      "description": "Run the Python suite alone.",
+      "filter": { "include": { "label": "python" } }
+    },
+    {
+      "name": "dev-rel-pilot",
+      "inherits": "dev-base",
+      "configurePreset": "dev-rel",
+      "displayName": "Developer Release, pilot suite",
+      "description": "Run the Python suite inside the pilot binary.",
+      "filter": { "include": { "label": "pilot" } }
+    },
+    {
+      "name": "dev-dbg",
+      "inherits": "dev-base",
+      "configurePreset": "dev-dbg",
+      "displayName": "Developer Debug, every suite",
+      "description": "Run the C++, Python, and pilot suites."
+    },
+    {
+      "name": "dev-noqt",
+      "inherits": "dev-base",
+      "configurePreset": "dev-noqt",
+      "displayName": "Developer Release, no Qt",
+      "description": "Run the C++ and Python suites; there is no pilot suite."
+    },
+    {
+      "name": "win-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": ["Windows"]
+        }
+      }
+    },
+    {
+      "name": "win-rel",
+      "inherits": "win-base",
+      "configurePreset": "win-rel",
+      "displayName": "Windows Release, every suite",
+      "description": "Run the C++, Python, and pilot suites."
+    },
+    {
+      "name": "win-dbg",
+      "inherits": "win-base",
+      "configurePreset": "win-dbg",
+      "displayName": "Windows Debug, every suite",
+      "description": "Run the C++, Python, and pilot suites."
+    }
   ]
 }

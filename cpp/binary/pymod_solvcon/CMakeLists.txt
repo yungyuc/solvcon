@@ -52,11 +52,21 @@ cmake_print_variables(PYTHON_VENV_BIN)
 execute_process(
     COMMAND ${PYTHON_VENV_BIN}/python3-config --extension-suffix
     OUTPUT_VARIABLE PYEXTSUFFIX
+    OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
 add_custom_target(_solvcon_py
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:_solvcon> ${SOLVCON_PY_DIR}/../_solvcon${PYEXTSUFFIX}
     DEPENDS _solvcon)
+
+# Remove the built extension from the source tree. The suffix is already
+# computed here, so the make clean targets call this instead of shelling out
+# to python3-config a second time to recompute it.
+add_custom_target(remove_solvcon_py
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+        ${SOLVCON_PY_DIR}/_solvcon${PYEXTSUFFIX}
+        ${SOLVCON_PY_DIR}/../_solvcon${PYEXTSUFFIX}
+    COMMENT "removing the built _solvcon extension")
 
 message(STATUS "CMAKE_INSTALL_INCLUDEDIR: ${CMAKE_INSTALL_INCLUDEDIR}")
 install(DIRECTORY ${SOLVCON_INCLUDE_DIR}/solvcon DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

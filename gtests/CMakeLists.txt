@@ -15,8 +15,6 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-enable_testing()
-
 if (APPLE)
     find_library(APPLE_FWK_ACCELERATE Accelerate REQUIRED)
 endif () # APPLE
@@ -62,7 +60,8 @@ target_link_libraries(
 )
 
 include(GoogleTest)
-gtest_discover_tests(test_nopython)
+# The label lets a test preset select the C++ cases alone.
+gtest_discover_tests(test_nopython PROPERTIES LABELS "cpp")
 
 add_custom_target(run_gtest
     COMMAND $<TARGET_FILE:test_nopython>
