@@ -16,8 +16,10 @@ cmake --build --preset <name>
 
 A preset that names a toolchain the current host cannot run carries a
 `condition`, so it does not appear in the listing there.  On Linux and macOS
-the make targets described in {doc}`/start/build_solvcon` remain the primary
-entry point; the presets are what an IDE reads.
+the make targets described in {doc}`/start/build_solvcon` remain the entry
+point every contributor uses, and they configure through these presets: the
+Makefile adds the ABI-tagged build directory, the generator, and whatever
+`make VAR=value` sets, and nothing else.
 
 | Configure preset | Host          | What it configures                    |
 |:-----------------|:--------------|:--------------------------------------|
