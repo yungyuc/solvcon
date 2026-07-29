@@ -25,6 +25,10 @@ environment variables:
 | `SOLVCON_PROFILE`    | `OFF`     | enable the runtime profiler      |
 | `USE_CLANG_TIDY`     | `OFF`     | run clang-tidy during the build  |
 
+CMake itself is configured through `CMakePresets.json`; see
+{doc}`/devguide/presets` for the preset a Windows build or an IDE selects, and
+for where the paths of a local dependency prefix belong.
+
 After building, run the tests as described in {doc}`/devguide/testing`.
 
 <!-- vim: set ft=markdown ff=unix fenc=utf8 et sw=2 ts=2 sts=2 tw=79: -->

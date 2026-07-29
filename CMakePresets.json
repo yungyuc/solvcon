@@ -29,6 +29,9 @@
       },
       "environment": {
         "PYTHONPATH": "${sourceDir}"
+      },
+      "vendor": {
+        "jetbrains.com/clion": { "enablePythonIntegration": true }
       }
     },
     {
@@ -36,7 +39,7 @@
       "hidden": true,
       "inherits": "base",
       "generator": "Ninja",
-      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot. BLA_VENDOR names the BLAS that the Windows dependency prefix ships; it steers only the find_package(LAPACK) fallback, and a build that sets SOLVCON_USE_MKL, as both Windows CI jobs do, never reaches that fallback.",
+      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot. BLA_VENDOR names the BLAS that the Windows dependency prefix ships; it steers only the find_package(LAPACK) fallback, and a build that sets SOLVCON_USE_MKL, as both Windows CI jobs do, never reaches that fallback. The CLion vendor entry is repeated from base because an inherited vendor map is replaced by the child's rather than merged with it.",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -47,6 +50,7 @@
         "BLA_VENDOR": { "type": "STRING", "value": "OpenBLAS" }
       },
       "vendor": {
+        "jetbrains.com/clion": { "enablePythonIntegration": true },
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
           "hostOS": ["Windows"],
           "intelliSenseMode": "windows-msvc-x64"

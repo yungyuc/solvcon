@@ -8,7 +8,9 @@
 # setup.py shell out to "make", and its module-copy target runs
 # "python3-config"; neither exists on Windows.  This drives CMake directly
 # through the win-rel / win-dbg presets in CMakePresets.json, adding only the
-# scdv-specific cache variables, and places the module by hand.
+# scdv-specific cache variables, and places the module by hand.  Those three
+# path variables belong in CMakeUserPresets.json; pass -Preset <name> to build
+# such a preset and the script leaves them to it.
 #
 # It finds a CMake >= 4.0.1 (solvcon's minimum; the VS 2022 Build Tools bundle
 # only 3.31.6, so it falls back to VS 2026's 4.x) and compiles with the same
@@ -22,6 +24,10 @@
 #       active scdv (or -ScdvBase), then place the module.
 #   .\build.ps1 -ScdvBase <dir>       activate the scdv at <dir> first
 #   .\build.ps1 -BuildType Debug      use the win-dbg preset
+#   .\build.ps1 -Preset local         use a preset from CMakeUserPresets.json,
+#                                     which is expected to supply the
+#                                     dependency-prefix paths itself (see
+#                                     contrib/cmake/CMakeUserPresets.json.example)
 #   .\build.ps1 -NoQt                 build only _solvcon (BUILD_QT=OFF)
 #   .\build.ps1 -Test                 then run "pytest tests\" headless
 #   .\build.ps1 -Pilot                then launch the pilot GUI
@@ -43,6 +49,7 @@ param(
     [string]$ScdvBase,
     [string]$Repo,
     [ValidateSet('Release', 'Debug')][string]$BuildType = 'Release',
+    [string]$Preset,
     [switch]$NoQt,
     [switch]$Gtest,
     [switch]$Test,
@@ -94,8 +101,19 @@ if (-not $Repo) { $Repo = $PSScriptRoot }
 if (-not (Test-Path -LiteralPath (Join-Path $Repo 'CMakePresets.json'))) {
     throw "no CMakePresets.json under -Repo '$Repo'; point it at a solvcon checkout"
 }
-$preset = if ($BuildType -eq 'Debug') { 'win-dbg' } else { 'win-rel' }
-$bld = Join-Path $Repo "build\$preset"
+# A named preset is taken verbatim, so a preset from CMakeUserPresets.json can
+# be built; -BuildType then selects nothing, since the named preset states its
+# own build type.  PowerShell variable names are case-insensitive, so the
+# resolved name cannot be spelled $preset next to the -Preset parameter.
+if ($Preset) {
+    if ($PSBoundParameters.ContainsKey('BuildType')) {
+        throw '-Preset and -BuildType are exclusive: the named preset states its own build type'
+    }
+    $presetName = $Preset
+} else {
+    $presetName = if ($BuildType -eq 'Debug') { 'win-dbg' } else { 'win-rel' }
+}
+$bld = Join-Path $Repo "build\$presetName"
 $solvconDir = Join-Path $Repo 'solvcon'
 
 # --- MSVC environment -------------------------------------------------------
@@ -186,42 +204,50 @@ if (-not (Test-Path -LiteralPath $py)) {
 
 # --- Configure and build via the preset -------------------------------------
 
-$pybind = & $py -m pybind11 --cmakedir
-Assert-LastExit 'pybind11 --cmakedir'
 # The preset holds the static knobs (generator, build type, BUILD_QT,
 # USE_GOOGLETEST, BLA_VENDOR, output dirs); pass the scdv-specific cache
 # variables on top.  -NoQt overrides the preset's BUILD_QT=ON.
-$extra = @(
-    "-DPYTHON_EXECUTABLE=$py",
-    "-Dpybind11_path=$pybind",
-    "-DCMAKE_PREFIX_PATH=$usr"
-)
+$extra = @()
+if ($Preset) {
+    # A named preset comes from CMakeUserPresets.json, whose whole purpose is
+    # to carry the paths of one machine's dependency prefix, so leave them to
+    # it rather than overriding them from the command line.
+    Write-Host "preset $presetName supplies the dependency-prefix paths"
+} else {
+    $pybind = & $py -m pybind11 --cmakedir
+    Assert-LastExit 'pybind11 --cmakedir'
+    $extra += @(
+        "-DPYTHON_EXECUTABLE=$py",
+        "-Dpybind11_path=$pybind",
+        "-DCMAKE_PREFIX_PATH=$usr"
+    )
+}
 if ($NoQt) { $extra += '-DBUILD_QT=OFF' }
-# -Gtest turns on the gtest binary (USE_GOOGLETEST is OFF in the preset), and
-# -Sanitize (which implies -Gtest) builds it under AddressSanitizer. The gtest
-# binary links the ASan runtime directly so ASan initializes at process start,
-# unlike loading an instrumented .pyd into a stock python.exe.
-if ($Gtest) { $extra += '-DUSE_GOOGLETEST=ON' }
+# -Gtest adds the gtest binary to the target list below; the preset already
+# states USE_GOOGLETEST, so nothing has to be turned on here. -Sanitize (which
+# implies -Gtest) builds that binary under AddressSanitizer. It links the ASan
+# runtime directly so ASan initializes at process start, unlike loading an
+# instrumented .pyd into a stock python.exe.
 if ($Sanitize) { $extra += '-DUSE_SANITIZER=ON' }
 
 Push-Location $Repo
 try {
-    Write-Host "configuring solvcon (preset $preset, BUILD_QT=$(if ($NoQt) {'OFF'} else {'ON'})) ..."
-    & $cmake --preset $preset @extra
+    Write-Host "configuring solvcon (preset $presetName, BUILD_QT=$(if ($NoQt) {'OFF'} else {'ON'})) ..."
+    & $cmake --preset $presetName @extra
     Assert-LastExit 'cmake configure'
 
     $targets = @('_solvcon')
     if (-not $NoQt) { $targets += 'pilot' }
     if ($Gtest) { $targets += 'test_nopython' }
     Write-Host "building targets: $($targets -join ', ')"
-    & $cmake --build --preset $preset --target @targets
+    & $cmake --build --preset $presetName --target @targets
     Assert-LastExit 'cmake build'
 } finally {
     Pop-Location
 }
 
 # _solvcon.pyd is a LIBRARY artifact (-> solvcon\, per the preset); pilot.exe is
-# a RUNTIME artifact (-> the preset's binary dir, build\$preset).
+# a RUNTIME artifact (-> the preset's binary dir, build\$presetName).
 # Copy the module to the repo root as the top-level _solvcon: solvcon.core
 # imports it there first, and the tests' qualified type names assume that name.
 $pyd = Get-ChildItem -LiteralPath $solvconDir -Filter '_solvcon*.pyd' |
