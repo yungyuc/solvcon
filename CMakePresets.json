@@ -1,41 +1,95 @@
 {
-  "version": 6,
+  "version": 10,
+  "$schema": "https://json.schemastore.org/cmake-presets.json",
   "cmakeMinimumRequired": { "major": 4, "minor": 0, "patch": 1 },
+  "$comment": "Schema version 10 is the highest that CMake 4.0.1, the project minimum, understands; it is also the highest CLion reads. Raising it further would lift the CMake floor and drop CLion support.",
   "configurePresets": [
     {
       "name": "win-base",
       "hidden": true,
       "generator": "Ninja",
+      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot, USE_GOOGLETEST is left off so a plain Windows build does not fetch googletest, BLA_VENDOR names the BLAS that the Windows dependency prefix provides, and CMAKE_LIBRARY_OUTPUT_DIRECTORY puts _solvcon next to the Python package so solvcon.core can import it in place.",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
       "cacheVariables": {
-        "BUILD_QT": "ON",
-        "USE_GOOGLETEST": "OFF",
-        "BLA_VENDOR": "OpenBLAS",
-        "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/solvcon"
+        "BUILD_QT": { "type": "BOOL", "value": "ON" },
+        "USE_GOOGLETEST": { "type": "BOOL", "value": "OFF" },
+        "BLA_VENDOR": { "type": "STRING", "value": "OpenBLAS" },
+        "CMAKE_LIBRARY_OUTPUT_DIRECTORY": {
+          "type": "PATH",
+          "value": "${sourceDir}/solvcon"
+        }
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": ["Windows"],
+          "intelliSenseMode": "windows-msvc-x64"
+        }
       }
     },
     {
       "name": "win-rel",
-      "displayName": "Windows Release (Ninja, MSVC)",
       "inherits": "win-base",
+      "displayName": "Windows Release (Ninja, MSVC)",
+      "description": "Optimized _solvcon and pilot built with MSVC through Ninja.",
       "binaryDir": "${sourceDir}/build/win-rel",
+      "$comment": "CMAKE_RUNTIME_OUTPUT_DIRECTORY keeps pilot.exe at the top of the build tree, where build.ps1 and the documentation look for it.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/win-rel"
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" },
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
+          "type": "PATH",
+          "value": "${sourceDir}/build/win-rel"
+        }
       }
     },
     {
       "name": "win-dbg",
-      "displayName": "Windows Debug (Ninja, MSVC)",
       "inherits": "win-base",
+      "displayName": "Windows Debug (Ninja, MSVC)",
+      "description": "Debuggable _solvcon and pilot built with MSVC through Ninja.",
       "binaryDir": "${sourceDir}/build/win-dbg",
+      "$comment": "CMAKE_RUNTIME_OUTPUT_DIRECTORY keeps pilot.exe at the top of the build tree, where build.ps1 and the documentation look for it.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/win-dbg"
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Debug" },
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
+          "type": "PATH",
+          "value": "${sourceDir}/build/win-dbg"
+        }
       }
     }
   ],
   "buildPresets": [
-    { "name": "win-rel", "configurePreset": "win-rel" },
-    { "name": "win-dbg", "configurePreset": "win-dbg" }
+    {
+      "name": "win-base",
+      "hidden": true,
+      "$comment": "A build preset does not inherit the condition of its configure preset, so the host filter is restated here to keep the Windows entries out of the listing and the preset pickers on other hosts.",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": ["Windows"]
+        }
+      }
+    },
+    {
+      "name": "win-rel",
+      "inherits": "win-base",
+      "configurePreset": "win-rel",
+      "displayName": "Windows Release",
+      "description": "Build the Windows Release configuration."
+    },
+    {
+      "name": "win-dbg",
+      "inherits": "win-base",
+      "configurePreset": "win-dbg",
+      "displayName": "Windows Debug",
+      "description": "Build the Windows Debug configuration."
+    }
   ]
 }
