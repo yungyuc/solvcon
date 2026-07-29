@@ -129,6 +129,60 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Debug" }
       }
+    },
+    {
+      "name": "ci-win-base",
+      "hidden": true,
+      "inherits": "win-base",
+      "$comment": "What the Windows CI jobs configure. A preset a workflow names on the command line cannot be hidden, so the leaves below appear in the IDE preset pickers; the ci- prefix and the descriptions are what tell a person to pick something else. The values a runner owns arrive through $env{}: the job exports them and the preset names them, which keeps a runner path out of the checked-in file while still letting CI stop spelling out a cmake command line.",
+      "cacheVariables": {
+        "pybind11_DIR": "$env{PYBIND11_DIR}"
+      }
+    },
+    {
+      "name": "ci-win-mkl",
+      "hidden": true,
+      "inherits": "ci-win-base",
+      "$comment": "SOLVCON_USE_MKL makes solvcon link mkl_rt for both CBLAS and LAPACK, found through the include and library paths the job locates in the Intel wheels. sccache is honoured by the Ninja generator only, which is why these presets do not use the Visual Studio generator. Embedded debug information keeps sccache able to cache the compile, since a separate PDB is not reproducible.",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER_LAUNCHER": "sccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
+        "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT": "Embedded",
+        "SOLVCON_USE_MKL": { "type": "BOOL", "value": "ON" },
+        "CMAKE_INCLUDE_PATH": "$env{MKL_INCLUDE_DIR}",
+        "CMAKE_LIBRARY_PATH": "$env{MKL_LIBRARY_DIR}"
+      }
+    },
+    {
+      "name": "ci-win-rel",
+      "inherits": "ci-win-mkl",
+      "displayName": "CI: Windows Release",
+      "description": "For the Windows CI job. A developer wants win-rel instead.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" }
+      }
+    },
+    {
+      "name": "ci-win-dbg",
+      "inherits": "ci-win-mkl",
+      "displayName": "CI: Windows Debug",
+      "description": "For the Windows CI job. A developer wants win-dbg instead.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Debug" }
+      }
+    },
+    {
+      "name": "ci-win-asan",
+      "inherits": "ci-win-base",
+      "displayName": "CI: Windows AddressSanitizer",
+      "description": "For the Windows sanitizer CI job. A developer wants win-rel instead.",
+      "$comment": "The sanitizer job takes BLAS and LAPACK from vcpkg rather than the MKL wheels, and it does not use sccache: an instrumented compile is not worth caching against the uninstrumented one under the same key.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": { "type": "STRING", "value": "Release" },
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "USE_SANITIZER": { "type": "BOOL", "value": "ON" }
+      }
     }
   ],
   "buildPresets": [
@@ -273,6 +327,27 @@
       "displayName": "Windows Debug, C++ test binary",
       "description": "Build the C++ gtest binary, Debug.",
       "targets": ["test_nopython"]
+    },
+    {
+      "name": "ci-win-rel",
+      "inherits": "win-base",
+      "configurePreset": "ci-win-rel",
+      "displayName": "CI: Windows Release",
+      "description": "Build everything the Windows CI job builds."
+    },
+    {
+      "name": "ci-win-dbg",
+      "inherits": "win-base",
+      "configurePreset": "ci-win-dbg",
+      "displayName": "CI: Windows Debug",
+      "description": "Build everything the Windows CI job builds."
+    },
+    {
+      "name": "ci-win-asan",
+      "inherits": "win-base",
+      "configurePreset": "ci-win-asan",
+      "displayName": "CI: Windows AddressSanitizer",
+      "description": "Build everything the Windows sanitizer CI job builds."
     }
   ],
   "testPresets": [
@@ -365,6 +440,66 @@
       "configurePreset": "win-dbg",
       "displayName": "Windows Debug, every suite",
       "description": "Run the C++, Python, and pilot suites."
+    },
+    {
+      "name": "ci-win-base",
+      "hidden": true,
+      "inherits": "win-base",
+      "$comment": "The Windows CI jobs run the C++ cases and the pilot suite, which is the coverage they have always had; the plain Python suite runs on Linux and macOS. The label filter states that rather than leaving it implicit in which targets a job builds.",
+      "filter": { "include": { "label": "cpp|pilot" } }
+    },
+    {
+      "name": "ci-win-rel",
+      "inherits": "ci-win-base",
+      "configurePreset": "ci-win-rel",
+      "displayName": "CI: Windows Release",
+      "description": "Run the C++ and pilot suites."
+    },
+    {
+      "name": "ci-win-dbg",
+      "inherits": "ci-win-base",
+      "configurePreset": "ci-win-dbg",
+      "displayName": "CI: Windows Debug",
+      "description": "Run the C++ and pilot suites."
+    },
+    {
+      "name": "ci-win-asan",
+      "inherits": "ci-win-base",
+      "configurePreset": "ci-win-asan",
+      "displayName": "CI: Windows AddressSanitizer",
+      "description": "Run the C++ and pilot suites under AddressSanitizer."
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "ci-win-rel",
+      "displayName": "CI: Windows Release",
+      "description": "Configure, build, and test the Windows Release CI job.",
+      "steps": [
+        { "type": "configure", "name": "ci-win-rel" },
+        { "type": "build", "name": "ci-win-rel" },
+        { "type": "test", "name": "ci-win-rel" }
+      ]
+    },
+    {
+      "name": "ci-win-dbg",
+      "displayName": "CI: Windows Debug",
+      "description": "Configure, build, and test the Windows Debug CI job.",
+      "steps": [
+        { "type": "configure", "name": "ci-win-dbg" },
+        { "type": "build", "name": "ci-win-dbg" },
+        { "type": "test", "name": "ci-win-dbg" }
+      ]
+    },
+    {
+      "name": "ci-win-asan",
+      "displayName": "CI: Windows AddressSanitizer",
+      "description": "Configure, build, and test the Windows sanitizer CI job.",
+      "steps": [
+        { "type": "configure", "name": "ci-win-asan" },
+        { "type": "build", "name": "ci-win-asan" },
+        { "type": "test", "name": "ci-win-asan" }
+      ]
     }
   ]
 }

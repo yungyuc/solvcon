@@ -62,6 +62,20 @@ CLion reads no test presets, so a CLion user reaches the same suites through
 its CTest integration against the configured build tree.  That works because
 the suites are registered with `add_test()`, not because a preset names them.
 
+Workflow presets chain configure, build, and test into one command:
+
+```bash
+cmake --workflow --preset ci-win-rel
+```
+
+They exist for CI.  The `ci-` presets are what the Windows jobs name instead
+of spelling out a `cmake` command line, and the two values a runner owns, the
+pybind11 package directory and the MKL paths, reach them through `$env{}`
+rather than being written into the file.  A preset that a command line names
+cannot be `hidden`, so the `ci-` presets do appear in the preset pickers; the
+prefix and their descriptions are what say to pick something else.  CLion does
+not show workflow presets at all.
+
 One consequence is worth knowing.  `_solvcon` is an ABI-tagged extension and
 `PYTHON_EXECUTABLE` is a cache variable, so pointing the same preset at a
 different interpreter reuses a stale cache.  Reconfigure with `--fresh` after

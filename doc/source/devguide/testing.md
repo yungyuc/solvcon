@@ -60,7 +60,9 @@ The fast set runs on every pull request and `master` push:
 - `standalone_buffer`: the standalone buffer build on ubuntu.
 - `build`: `make gtest` plus `make pytest` with Qt off and on, and the pilot,
   on ubuntu and macOS (Release).
-- `build_windows` (Release): the Windows build and tests.
+- `build_windows` (Release): the Windows build and tests, driven by the
+  `ci-win-rel` workflow preset, which chains configure, build, and the CTest
+  run over the C++ cases and the pilot suite.
 
 The heavy set runs on the nightly schedule only:
 
