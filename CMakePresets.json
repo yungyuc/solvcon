@@ -5,10 +5,38 @@
   "$comment": "Schema version 10 is the highest that CMake 4.0.1, the project minimum, understands; it is also the highest CLion reads. Raising it further would lift the CMake floor and drop CLion support.",
   "configurePresets": [
     {
+      "name": "base",
+      "hidden": true,
+      "$comment": "The knobs that hold on every host, at the values the Makefile passes on every configure. HIDE_SYMBOL keeps the C++ symbols out of the module's dynamic table, DEBUG_SYMBOL keeps a build debuggable, LINT_AS_ERRORS makes a clang-tidy report fail the build once USE_CLANG_TIDY turns it on, SKIP_PYTHON_EXECUTABLE off lets CMake locate the interpreter, and SOLVCON_PROFILE and BUILD_METAL are the two features that are off unless a build asks for them. USE_GOOGLETEST is stated at the project default so that a preset build and a make build compile the same set of targets. CMAKE_LIBRARY_OUTPUT_DIRECTORY puts _solvcon next to the Python package so solvcon.core imports it in place, and CMAKE_INSTALL_PREFIX keeps a stray install inside the build tree.",
+      "cacheVariables": {
+        "HIDE_SYMBOL": { "type": "BOOL", "value": "ON" },
+        "DEBUG_SYMBOL": { "type": "BOOL", "value": "ON" },
+        "LINT_AS_ERRORS": { "type": "BOOL", "value": "ON" },
+        "SKIP_PYTHON_EXECUTABLE": { "type": "BOOL", "value": "OFF" },
+        "SOLVCON_PROFILE": { "type": "BOOL", "value": "OFF" },
+        "USE_CLANG_TIDY": { "type": "BOOL", "value": "OFF" },
+        "BUILD_METAL": { "type": "BOOL", "value": "OFF" },
+        "USE_GOOGLETEST": { "type": "BOOL", "value": "ON" },
+        "CMAKE_EXPORT_COMPILE_COMMANDS": { "type": "BOOL", "value": "ON" },
+        "CMAKE_LIBRARY_OUTPUT_DIRECTORY": {
+          "type": "PATH",
+          "value": "${sourceDir}/solvcon"
+        },
+        "CMAKE_INSTALL_PREFIX": {
+          "type": "PATH",
+          "value": "${sourceDir}/build/fakeinstall"
+        }
+      },
+      "environment": {
+        "PYTHONPATH": "${sourceDir}"
+      }
+    },
+    {
       "name": "win-base",
       "hidden": true,
+      "inherits": "base",
       "generator": "Ninja",
-      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot, USE_GOOGLETEST is left off so a plain Windows build does not fetch googletest, BLA_VENDOR names the BLAS that the Windows dependency prefix provides, and CMAKE_LIBRARY_OUTPUT_DIRECTORY puts _solvcon next to the Python package so solvcon.core can import it in place.",
+      "$comment": "Windows builds go through Ninja and MSVC because the Makefile shells out to make and python3-config, neither of which exists there. BUILD_QT builds the pilot. BLA_VENDOR names the BLAS that the Windows dependency prefix ships; it steers only the find_package(LAPACK) fallback, and a build that sets SOLVCON_USE_MKL, as both Windows CI jobs do, never reaches that fallback.",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -16,12 +44,7 @@
       },
       "cacheVariables": {
         "BUILD_QT": { "type": "BOOL", "value": "ON" },
-        "USE_GOOGLETEST": { "type": "BOOL", "value": "OFF" },
-        "BLA_VENDOR": { "type": "STRING", "value": "OpenBLAS" },
-        "CMAKE_LIBRARY_OUTPUT_DIRECTORY": {
-          "type": "PATH",
-          "value": "${sourceDir}/solvcon"
-        }
+        "BLA_VENDOR": { "type": "STRING", "value": "OpenBLAS" }
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
