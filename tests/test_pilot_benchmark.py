@@ -368,6 +368,33 @@ class RunPanelTC(unittest.TestCase):
             action()
             self.assert_finished('stopped')
 
+    def test_filters_application_events_only_while_running(self):
+        class Probe(_run.RunPanel):
+            def eventFilter(self, watched, event):
+                self.filtered += 1
+                return super().eventFilter(watched, event)
+
+        control = Probe()
+        self.addCleanup(control.deleteLater)
+        self.addCleanup(control.stop)
+        receiver = QtCore.QObject()
+        event = QtCore.QEvent(QtCore.QEvent.Type.User)
+
+        def filtered():
+            control.filtered = 0
+            QtCore.QCoreApplication.sendEvent(receiver, event)
+            return control.filtered
+
+        self.assertEqual(filtered(), 0)
+        with unittest.mock.patch.object(
+            system, 'python_command', return_value=WorkerStub().command(),
+        ):
+            control.start(self.spec, self.path)
+        self.assertEqual(filtered(), 1)
+        control.stop()
+        self.wait_for(lambda: not control.running)
+        self.assertEqual(filtered(), 0)
+
 
 @unittest.skipIf(QtWidgets is None, 'PySide6 is not installed')
 class BenchmarkInspectorTC(unittest.TestCase):

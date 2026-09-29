@@ -56,7 +56,6 @@ class RunPanel(QtWidgets.QWidget):
         self._process.readyReadStandardError.connect(self._read_stderr)
         self._process.errorOccurred.connect(self._process_error)
         self._process.finished.connect(self._finish)
-        QtWidgets.QApplication.instance().installEventFilter(self)
         self._clock = QtCore.QElapsedTimer()
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._update_elapsed)
@@ -101,6 +100,9 @@ class RunPanel(QtWidgets.QWidget):
         self._stderr = b''
         self._cancelled = False
         self._running = True
+        # An idle panel has no worker to stop, so it stays out of the
+        # application's event path until the next start.
+        QtWidgets.QApplication.instance().installEventFilter(self)
         self.progress.setRange(0, 0)
         self.progress.setTextVisible(False)
         self.progress.show()
@@ -245,6 +247,7 @@ class RunPanel(QtWidgets.QWidget):
             self._error = 'Worker exited without a result'
 
         self._running = False
+        QtWidgets.QApplication.instance().removeEventFilter(self)
         self.progress.setRange(0, 1)
         success = not (self._cancelled or self._error)
         self.progress.setValue(int(success))
