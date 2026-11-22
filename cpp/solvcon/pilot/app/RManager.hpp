@@ -25,6 +25,7 @@
 #include <QMainWindow>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QSize>
 #include <Qt>
 
 namespace solvcon
@@ -53,6 +54,12 @@ class RManager
 
 public:
 
+    /// Initial size of a sub-window that hosts a 2D or 3D viewer.
+    static constexpr QSize VIEWER_SUBWINDOW_SIZE{400, 300};
+
+    /// Initial size of a sub-window that hosts a widget added through addSubWindow from Python.
+    static constexpr QSize WIDGET_SUBWINDOW_SIZE{300, 200};
+
     ~RManager() override;
 
     RManager & setUp();
@@ -63,10 +70,15 @@ public:
 
     RDomainWidget * add3DWidget();
     R2DWidget * add2DWidget();
-    RDomainWidget * currentR3DWidget();
-    R2DWidget * currentR2DWidget();
-    std::vector<RDomainWidget *> list3DWidgets();
-    std::vector<R2DWidget *> list2DWidgets();
+
+    /// The viewer in the current sub-window, or nullptr when that holds no 3D viewer.
+    RDomainWidget * currentR3DWidget() const;
+
+    /// The canvas in the current sub-window, or nullptr when that holds no 2D canvas.
+    R2DWidget * currentR2DWidget() const;
+
+    std::vector<RDomainWidget *> list3DWidgets() const;
+    std::vector<R2DWidget *> list2DWidgets() const;
 
     /// Name of the active canvas drawing tool.
     std::string drawTool() const { return m_draw_tool; }
@@ -137,7 +149,8 @@ private:
 
     std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
 
-    static RDomainWidget * domainWidgetOf(QMdiSubWindow * subwin);
+    static RDomainWidget * domainWidgetOf(QMdiSubWindow const * subwin);
+    static R2DWidget * canvasOf(QMdiSubWindow const * subwin);
 
     bool m_already_setup = false;
 

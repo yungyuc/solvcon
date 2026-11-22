@@ -1159,7 +1159,7 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 [](wrapped_type & self, QWidget * widget)
                 {
                     QMdiSubWindow * subwin = self.addSubWindow(widget);
-                    subwin->resize(300, 200);
+                    subwin->resize(RManager::WIDGET_SUBWINDOW_SIZE);
                     subwin->setAttribute(Qt::WA_DeleteOnClose);
                     return subwin;
                 },

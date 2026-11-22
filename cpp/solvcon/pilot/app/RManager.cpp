@@ -262,7 +262,7 @@ RDomainWidget * RManager::add3DWidget()
             }
         }
         auto * subwin = this->addSubWindow(host);
-        subwin->resize(400, 300);
+        subwin->resize(VIEWER_SUBWINDOW_SIZE);
         this->addSubWindowGrip(subwin);
     }
     return viewer;
@@ -290,100 +290,72 @@ R2DWidget * RManager::add2DWidget()
         viewer->setWindowTitle("2D canvas");
         viewer->show();
         auto * subwin = this->addSubWindow(viewer);
-        subwin->resize(400, 300);
-        viewer->resize(400, 300);
+        subwin->resize(VIEWER_SUBWINDOW_SIZE);
+        viewer->resize(VIEWER_SUBWINDOW_SIZE);
         this->addSubWindowGrip(subwin);
     }
     return viewer;
 }
 
-RDomainWidget * RManager::currentR3DWidget()
+RDomainWidget * RManager::currentR3DWidget() const
 {
-    if (m_mdiArea == nullptr)
-    {
-        return nullptr;
-    }
-
-    return domainWidgetOf(m_mdiArea->currentSubWindow());
+    return m_mdiArea ? domainWidgetOf(m_mdiArea->currentSubWindow()) : nullptr;
 }
 
-/**
- * The RDomainWidget hosted by @p subwin, or nullptr when @p subwin holds
- * some other widget. The viewer sits inside a plain container widget, so
- * reach through the subwindow's direct child to find it.
- */
-RDomainWidget * RManager::domainWidgetOf(QMdiSubWindow * subwin)
+R2DWidget * RManager::currentR2DWidget() const
 {
-    if (subwin == nullptr)
-    {
-        return nullptr;
-    }
-    QWidget * host = subwin->widget();
+    return m_mdiArea ? canvasOf(m_mdiArea->currentSubWindow()) : nullptr;
+}
+
+RDomainWidget * RManager::domainWidgetOf(QMdiSubWindow const * subwin)
+{
+    QWidget * host = subwin ? subwin->widget() : nullptr;
     if (host == nullptr)
     {
         return nullptr;
     }
-    // The host is the container; the viewer is its child. Guard the host
-    // itself too, in case an unwrapped viewer is ever added directly.
-    if (auto * viewer = dynamic_cast<RDomainWidget *>(host))
+    // add3DWidget puts the viewer inside a host container; accept a viewer
+    // hosted directly too.
+    if (auto * viewer = qobject_cast<RDomainWidget *>(host))
     {
         return viewer;
     }
     return host->findChild<RDomainWidget *>();
 }
 
-R2DWidget * RManager::currentR2DWidget()
+R2DWidget * RManager::canvasOf(QMdiSubWindow const * subwin)
 {
-    if (m_mdiArea == nullptr)
-    {
-        return nullptr;
-    }
-
-    const auto * subwin = m_mdiArea->currentSubWindow();
-    if (subwin == nullptr)
-    {
-        return nullptr;
-    }
-
-    return dynamic_cast<R2DWidget *>(subwin->widget());
+    return subwin ? qobject_cast<R2DWidget *>(subwin->widget()) : nullptr;
 }
 
-std::vector<RDomainWidget *> RManager::list3DWidgets()
+std::vector<RDomainWidget *> RManager::list3DWidgets() const
 {
     std::vector<RDomainWidget *> widgets;
-    if (m_mdiArea == nullptr)
+    if (m_mdiArea)
     {
-        return widgets;
-    }
-
-    // A 3D viewer sits inside a host container subwindow, so resolve it
-    // through domainWidgetOf rather than casting the subwindow's widget.
-    for (auto subwin : m_mdiArea->subWindowList())
-    {
-        if (auto * viewer = domainWidgetOf(subwin))
+        for (QMdiSubWindow const * subwin : m_mdiArea->subWindowList())
         {
-            widgets.push_back(viewer);
+            if (auto * viewer = domainWidgetOf(subwin))
+            {
+                widgets.push_back(viewer);
+            }
         }
     }
     return widgets;
 }
 
-std::vector<R2DWidget *> RManager::list2DWidgets()
+std::vector<R2DWidget *> RManager::list2DWidgets() const
 {
     std::vector<R2DWidget *> widgets;
-    if (m_mdiArea == nullptr)
+    if (m_mdiArea)
     {
-        return widgets;
-    }
-
-    for (auto subwin : m_mdiArea->subWindowList())
-    {
-        auto * viewer = dynamic_cast<R2DWidget *>(subwin->widget());
-
-        if (viewer == nullptr)
-            continue;
-
-        widgets.push_back(viewer);
+        for (QMdiSubWindow const * subwin : m_mdiArea->subWindowList())
+        {
+            if (auto * canvas = canvasOf(subwin))
+            {
+                widgets.push_back(canvas);
+            }
+        }
     }
     return widgets;
 }
@@ -421,8 +393,7 @@ void RManager::applyDrawTool()
 
 void RManager::undoCanvas() const
 {
-    auto const * subwin = m_mdiArea ? m_mdiArea->currentSubWindow() : nullptr;
-    auto * canvas = subwin ? dynamic_cast<R2DWidget *>(subwin->widget()) : nullptr;
+    R2DWidget * canvas = currentR2DWidget();
     if (canvas == nullptr || canvas->world() == nullptr)
     {
         return;
@@ -433,8 +404,7 @@ void RManager::undoCanvas() const
 
 void RManager::redoCanvas() const
 {
-    auto const * subwin = m_mdiArea ? m_mdiArea->currentSubWindow() : nullptr;
-    auto * canvas = subwin ? dynamic_cast<R2DWidget *>(subwin->widget()) : nullptr;
+    R2DWidget * canvas = currentR2DWidget();
     if (canvas == nullptr || canvas->world() == nullptr)
     {
         return;
@@ -565,12 +535,9 @@ void RManager::setUpCameraControllersMenuItems() const
 {
     auto set_mode = [this](std::string const & mode)
     {
-        for (auto subwin : m_mdiArea->subWindowList())
+        for (RDomainWidget * viewer : list3DWidgets())
         {
-            if (auto * viewer = domainWidgetOf(subwin))
-            {
-                viewer->setCameraMode(mode);
-            }
+            viewer->setCameraMode(mode);
         }
     };
 
@@ -671,11 +638,7 @@ std::function<void()> RManager::createCameraMovementItemHandler(const std::funct
 {
     return [this, func]()
     {
-        if (m_mdiArea == nullptr)
-        {
-            return;
-        }
-        if (auto * viewer = domainWidgetOf(m_mdiArea->currentSubWindow()))
+        if (RDomainWidget * viewer = currentR3DWidget())
         {
             func(viewer);
         }
