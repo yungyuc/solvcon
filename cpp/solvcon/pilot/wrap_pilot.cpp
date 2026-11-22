@@ -83,6 +83,11 @@ public:
 
     static handle cast(type * src, return_value_policy /* policy */, handle /* parent */)
     {
+        // PySide aborts the process when asked for the type of a null object.
+        if (src == nullptr)
+        {
+            return none().release();
+        }
         PyObject * p = nullptr;
         PyTypeObject * to = PySide::getTypeForQObject(src);
         if (to)

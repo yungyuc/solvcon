@@ -2,6 +2,7 @@
 # BSD 3-Clause License, see COPYING
 
 import os
+import sys
 import unittest
 
 import numpy as np
@@ -12,6 +13,7 @@ __all__ = [
     'requires_pilot',
     'requires_live_window',
     'dispose_widget',
+    'rerun_command',
 ]
 
 
@@ -69,5 +71,32 @@ def dispose_widget(widget):
     import shiboken6
     if shiboken6.isValid(widget):
         shiboken6.delete(widget)
+
+
+def rerun_command(path, name, flag):
+    """Return the command and environment that run one test function in a
+    fresh process of the running executable.
+
+    A test that needs a process of its own, for example one where nothing has
+    set the pilot up yet, reruns a helper test this way.  The helper skips
+    itself unless ``flag`` is set, so the normal run does not execute it.
+
+    :param path: The test file that holds the helper.
+    :param name: The name of the helper test function.
+    :param flag: The environment variable set to ``1`` for the helper.
+    :return: ``(cmd, env)``, or ``(None, None)`` when the running executable
+        is neither the pilot nor a Python interpreter.
+    """
+    env = os.environ.copy()
+    env[flag] = '1'
+    exe = os.path.basename(sys.executable).lower()
+    if exe in ('pilot', 'pilot.exe'):
+        # The pilot test mode always collects the whole suite; -k selects.
+        env['PYTEST_OPTS'] = f'-q -p no:cacheprovider -k {name}'
+        return [sys.executable, '--mode=pytest'], env
+    if exe.startswith('python'):
+        return [sys.executable, '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
+                f'{path}::{name}'], env
+    return None, None
 
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4:

@@ -477,11 +477,11 @@ class ThreadManagerTC(unittest.TestCase):
         if os.path.basename(sys.executable).lower() not in (
                 'pilot', 'pilot.exe'):
             self.skipTest('requires the Pilot executable')
-        env = os.environ.copy()
-        env['SOLVCON_THREAD_SHUTDOWN_HELPER'] = '1'
-        env['PYTEST_OPTS'] = '-q -k test_thread_manager_shutdown_helper'
+        cmd, env = testing.rerun_command(
+            __file__, 'test_thread_manager_shutdown_helper',
+            'SOLVCON_THREAD_SHUTDOWN_HELPER')
         completed = subprocess.run(
-            [sys.executable, '--mode=pytest'],
+            cmd,
             capture_output=True,
             env=env,
             text=True,

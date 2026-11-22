@@ -2,6 +2,9 @@
 # BSD 3-Clause License, see COPYING
 
 
+import os
+import subprocess
+import sys
 import unittest
 
 import solvcon
@@ -9,8 +12,11 @@ from solvcon import testing
 
 try:
     from solvcon import pilot
+    from PySide6 import QtCore
 except ImportError:
     pilot = None
+
+_HELPER_ENV = 'SOLVCON_RMANAGER_BEFORE_SETUP_HELPER'
 
 
 def _make_3d_mesh():
@@ -27,10 +33,68 @@ def _make_3d_mesh():
 
 
 @testing.requires_pilot
+@unittest.skipUnless(os.environ.get(_HELPER_ENV) == '1',
+                     'before-setUp subprocess helper')
+def test_rmanager_before_setup_helper():
+    # Runs in a fresh process, where nothing has called setUp() yet.
+    mgr = pilot.RManager.instance
+    for name in ('add2DWidget', 'add3DWidget'):
+        try:
+            getattr(mgr, name)()
+        except RuntimeError as e:
+            assert 'setUp' in str(e), str(e)
+        else:
+            raise AssertionError(f'{name} before setUp did not raise')
+    from PySide6 import QtWidgets
+    try:
+        mgr.addSubWindow(QtWidgets.QWidget())
+    except RuntimeError as e:
+        assert 'setUp' in str(e), str(e)
+    else:
+        raise AssertionError('addSubWindow before setUp did not raise')
+    # The queries have nothing to report, which is not an error.
+    assert mgr.currentR2DWidget() is None
+    assert mgr.currentR3DWidget() is None
+    assert [] == mgr.list2DWidgets() == mgr.list3DWidgets()
+    # A null Qt object reaches Python as None instead of aborting.
+    assert mgr.mdiArea is None
+
+
+@testing.requires_pilot
+class RManagerBeforeSetUpTC(unittest.TestCase):
+    """The widget factories need the MDI area that setUp() builds.
+
+    They used to hand back None, and the Python addSubWindow wrapper went on
+    to resize the null sub-window and crashed the process. The suite has set
+    the singleton up long before this test runs, so the check runs in a
+    process of its own.
+    """
+
+    def test_factories_raise_before_setup(self):
+        cmd, env = testing.rerun_command(
+            __file__, 'test_rmanager_before_setup_helper', _HELPER_ENV)
+        if cmd is None:
+            self.skipTest(
+                f'cannot tell how to rerun the tests with {sys.executable!r}')
+        completed = subprocess.run(
+            cmd, capture_output=True, env=env, text=True, timeout=120,
+            check=False)
+        out = completed.stdout + completed.stderr
+        self.assertEqual(0, completed.returncode, msg=out)
+        self.assertIn('1 passed', out)
+
+
+@testing.requires_pilot
 class RManagerSubWindowTC(unittest.TestCase):
 
     def setUp(self):
         self.mgr = pilot.RManager.instance.setUp()
+
+    def test_add_subwindow_rejects_a_non_widget(self):
+        # The binding hands a non-widget QObject over as a null widget,
+        # which QMdiArea declines with a null sub-window.
+        with self.assertRaises(ValueError):
+            self.mgr.addSubWindow(QtCore.QObject())
 
     def test_add_subwindow_opens_at_widget_size(self):
         from PySide6 import QtWidgets

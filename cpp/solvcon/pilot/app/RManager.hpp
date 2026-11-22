@@ -28,6 +28,8 @@
 #include <QSize>
 #include <Qt>
 
+#include <stdexcept>
+
 namespace solvcon
 {
 
@@ -62,13 +64,21 @@ public:
 
     ~RManager() override;
 
+    /**
+     * Build the main window: theme, MDI area, RHI primer, and menu bar. A
+     * second call is a no-op. Throws std::logic_error after reset(), which
+     * ends the session for good.
+     */
     RManager & setUp();
 
     static RManager & instance();
 
     QCoreApplication * core() { return m_core; }
 
+    /// Open a 3D viewer in a new, active sub-window. Throws std::logic_error before setUp().
     RDomainWidget * add3DWidget();
+
+    /// Open a 2D canvas in a new, active sub-window. Throws std::logic_error before setUp().
     R2DWidget * add2DWidget();
 
     /// The viewer in the current sub-window, or nullptr when that holds no 3D viewer.
@@ -90,6 +100,11 @@ public:
 
     QMdiArea * mdiArea() { return m_mdiArea; }
 
+    /**
+     * Add a sub-window to the MDI area, show it, and make it active. Throws
+     * std::logic_error before setUp() and std::invalid_argument when Qt
+     * declines the widget (for example a null one).
+     */
     template <typename... Args>
     QMdiSubWindow * addSubWindow(Args &&... args);
 
@@ -111,7 +126,8 @@ public:
 
     RThreadManager * threadManager() { return m_thread_manager; }
 
-    void quit() { m_core->quit(); }
+    /// Ask the application to leave its event loop. A no-op after reset().
+    void quit();
 
     /// Only call reset() when the program is to be stopped.
     void reset();
@@ -149,10 +165,16 @@ private:
 
     std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
 
+    /// Throw std::logic_error naming @p caller unless setUp() has built the MDI area.
+    void requireSetUp(char const * caller) const;
+
     static RDomainWidget * domainWidgetOf(QMdiSubWindow const * subwin);
     static R2DWidget * canvasOf(QMdiSubWindow const * subwin);
 
     bool m_already_setup = false;
+
+    /// Set by reset(). The application and the window are gone, so setUp() cannot run again.
+    bool m_torn_down = false;
 
     /// Non-owning handle, possibly borrowed from another runtime (PySide6).
     QCoreApplication * m_core = nullptr;
@@ -197,13 +219,14 @@ private:
 template <typename... Args>
 QMdiSubWindow * RManager::addSubWindow(Args &&... args)
 {
-    QMdiSubWindow * subwin = nullptr;
-    if (m_mdiArea)
+    requireSetUp("addSubWindow");
+    QMdiSubWindow * subwin = m_mdiArea->addSubWindow(std::forward<Args>(args)...);
+    if (subwin == nullptr)
     {
-        subwin = m_mdiArea->addSubWindow(std::forward<Args>(args)...);
-        subwin->show();
-        m_mdiArea->setActiveSubWindow(subwin);
+        throw std::invalid_argument("RManager::addSubWindow: the MDI area did not accept the widget");
     }
+    subwin->show();
+    m_mdiArea->setActiveSubWindow(subwin);
     return subwin;
 }
 

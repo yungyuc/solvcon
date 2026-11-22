@@ -139,16 +139,12 @@ RManager::RManager()
 
 RManager & RManager::setUp()
 {
+    if (m_torn_down)
+    {
+        throw std::logic_error("RManager::setUp: the manager was reset and cannot be set up again");
+    }
     if (!m_already_setup)
     {
-        if (m_themeManager == nullptr)
-        {
-            m_themeManager = new RThemeManager(this);
-        }
-        if (m_shortcutManager == nullptr)
-        {
-            m_shortcutManager = new RShortcutManager(this);
-        }
         // Paint the style and palette for widgets to follow.
         this->m_themeManager->setWindow(m_mainWindow);
         this->m_themeManager->apply();
@@ -166,9 +162,8 @@ void RManager::reset()
     // Nullify all child pointers before destroying QApplication.
     // Qt's parent-child mechanism will delete widget children; we only
     // need to ensure our raw pointers don't dangle after the call.
-    m_already_setup = false;
-    // Empty the menu model while the application (and its widgets) is still
-    // alive, so a repeated setUp on the singleton starts from a clean bar.
+    m_torn_down = true;
+    // Empty the menu model while the application and its widgets are alive.
     if (m_menuModel)
     {
         m_menuModel->clear();
@@ -202,6 +197,14 @@ void RManager::reset()
     m_rhi_primer = nullptr;
 }
 
+void RManager::quit()
+{
+    if (m_core)
+    {
+        m_core->quit();
+    }
+}
+
 // NOLINTNEXTLINE(bugprone-exception-escape)
 RManager::~RManager()
 {
@@ -223,77 +226,79 @@ void RManager::addSubWindowGrip(QMdiSubWindow * subwin)
     new SubWindowGrip(subwin);
 }
 
+void RManager::requireSetUp(char const * caller) const
+{
+    if (m_mdiArea == nullptr)
+    {
+        throw std::logic_error(std::string("RManager::") + caller + ": call setUp() first");
+    }
+}
+
 RDomainWidget * RManager::add3DWidget()
 {
-    RDomainWidget * viewer = nullptr;
-    if (m_mdiArea)
-    {
-        // A QRhiWidget cannot be the direct child of a QMdiSubWindow: nested
-        // there it never reaches a QRhi-flushed backing store, so it logs
-        // "QRhiWidget: No QRhi" and draws nothing, and a second viewer brings
-        // the swapchain down with it (seen on macOS). Host the viewer inside a
-        // plain container widget, which composites correctly and lets several
-        // viewers coexist.
-        auto * host = new QWidget;
-        auto * layout = new QVBoxLayout(host);
-        layout->setContentsMargins(0, 0, 0, 0);
-        viewer = new RDomainWidget(/*parent*/ host);
-        layout->addWidget(viewer);
-        // The sub-window shows the title of the host, so the host follows the
-        // title set on the viewer. An empty title gives the default title.
-        QObject::connect(
-            viewer,
-            &QWidget::windowTitleChanged,
-            host,
-            [host](QString const & title)
-            {
-                host->setWindowTitle(title.isEmpty() ? QStringLiteral("Domain viewer") : title);
-            });
-        host->setWindowTitle(QStringLiteral("Domain viewer"));
-        // Associate the Escape reset shortcut with this viewer; a
-        // Qt::WidgetShortcut fires only while a widget it was added to has
-        // focus. The hidden RHI primer is created elsewhere and never reaches
-        // here, so it stays unbound.
-        if (m_menuModel)
+    requireSetUp("add3DWidget");
+
+    // A QRhiWidget cannot be the direct child of a QMdiSubWindow: nested
+    // there it never reaches a QRhi-flushed backing store, so it logs
+    // "QRhiWidget: No QRhi" and draws nothing, and a second viewer brings
+    // the swapchain down with it (seen on macOS). Host the viewer inside a
+    // plain container widget, which composites correctly and lets several
+    // viewers coexist.
+    auto * host = new QWidget;
+    auto * layout = new QVBoxLayout(host);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto * viewer = new RDomainWidget(/*parent*/ host);
+    layout->addWidget(viewer);
+
+    // The sub-window shows the title of the host, so the host follows the
+    // title set on the viewer. An empty title gives the default title.
+    QObject::connect(
+        viewer,
+        &QWidget::windowTitleChanged,
+        host,
+        [host](QString const & title)
         {
-            if (QAction * reset = m_menuModel->action("camera.reset"))
-            {
-                viewer->addAction(reset);
-            }
-        }
-        auto * subwin = this->addSubWindow(host);
-        subwin->resize(VIEWER_SUBWINDOW_SIZE);
-        this->addSubWindowGrip(subwin);
+            host->setWindowTitle(title.isEmpty() ? QStringLiteral("Domain viewer") : title);
+        });
+    host->setWindowTitle(QStringLiteral("Domain viewer"));
+    // Associate the Escape reset shortcut with this viewer; a
+    // Qt::WidgetShortcut fires only while a widget it was added to has
+    // focus. The hidden RHI primer is created elsewhere and never reaches
+    // here, so it stays unbound.
+    if (QAction * reset = m_menuModel ? m_menuModel->action("camera.reset") : nullptr)
+    {
+        viewer->addAction(reset);
     }
+
+    auto * subwin = this->addSubWindow(host);
+    subwin->resize(VIEWER_SUBWINDOW_SIZE);
+    this->addSubWindowGrip(subwin);
     return viewer;
 }
 
 R2DWidget * RManager::add2DWidget()
 {
-    R2DWidget * viewer = nullptr;
-    if (m_mdiArea)
-    {
-        viewer = new R2DWidget(/*parent*/ m_mdiArea);
-        viewer->followTheme(m_themeManager);
+    requireSetUp("add2DWidget");
 
-        if (m_menuModel)
+    auto * viewer = new R2DWidget(/*parent*/ m_mdiArea);
+    viewer->followTheme(m_themeManager);
+    if (m_menuModel)
+    {
+        for (std::string const & tool : draw_tool_names())
         {
-            for (std::string const & tool : draw_tool_names())
+            if (QAction * act = m_menuModel->action("draw.tool." + tool))
             {
-                if (QAction * act = m_menuModel->action("draw.tool." + tool))
-                {
-                    viewer->addAction(act);
-                }
+                viewer->addAction(act);
             }
         }
-
-        viewer->setWindowTitle("2D canvas");
-        viewer->show();
-        auto * subwin = this->addSubWindow(viewer);
-        subwin->resize(VIEWER_SUBWINDOW_SIZE);
-        viewer->resize(VIEWER_SUBWINDOW_SIZE);
-        this->addSubWindowGrip(subwin);
     }
+    viewer->setWindowTitle("2D canvas");
+    viewer->show();
+
+    auto * subwin = this->addSubWindow(viewer);
+    subwin->resize(VIEWER_SUBWINDOW_SIZE);
+    viewer->resize(VIEWER_SUBWINDOW_SIZE);
+    this->addSubWindowGrip(subwin);
     return viewer;
 }
 
