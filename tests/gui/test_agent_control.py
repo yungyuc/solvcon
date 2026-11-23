@@ -70,6 +70,15 @@ class PilotWindowManagerTC(_PilotTC):
         active = [w["id"] for w in windows if w["active"]]
         self.assertEqual(active, [second])
 
+    def test_list_marks_the_current_view_beside_the_active_one(self):
+        first = self.ex.run({"op": "new_canvas"}).value["window_id"]
+        second = self.ex.run({"op": "new_canvas"}).value["window_id"]
+        self.mgr.setCurrentView(
+            self.mgr.canvasOf(self.wm._subwindow_of(first)))
+        windows = self.ex.run({"op": "list_windows"}).value["windows"]
+        self.assertEqual([second], [w["id"] for w in windows if w["active"]])
+        self.assertEqual([first], [w["id"] for w in windows if w["current"]])
+
     def test_activate_window_switches_the_active_one(self):
         first = self.ex.run({"op": "new_canvas"}).value["window_id"]
         self.ex.run({"op": "new_canvas"})

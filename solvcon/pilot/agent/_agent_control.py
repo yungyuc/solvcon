@@ -78,12 +78,14 @@ class PilotWindowManager:
 
     def list_windows(self):
         active = self._area().activeSubWindow()
+        current = self._mgr.currentSubWindow()
         subwins = self._open_subwindows()
         live = set(subwins)
         self._ids = {s: i for s, i in self._ids.items() if s in live}
         return [{"id": self._id_of(s),
                  "title": s.windowTitle() or "window",
-                 "active": s is active}
+                 "active": s is active,
+                 "current": s is current}
                 for s in subwins]
 
     def activate_window(self, window_id):
@@ -210,8 +212,9 @@ def pilot_scene_context(dispatcher, base):
     windows = dispatcher.run({"op": "list_windows"}).value["windows"]
     if windows:
         lines.append("windows: " + ", ".join(
-            "#%d %r%s" % (w["id"], w["title"],
-                          " (active)" if w["active"] else "")
+            "#%d %r%s%s" % (w["id"], w["title"],
+                            " (active)" if w["active"] else "",
+                            " (current)" if w["current"] else "")
             for w in windows))
     else:
         lines.append("windows: none open")

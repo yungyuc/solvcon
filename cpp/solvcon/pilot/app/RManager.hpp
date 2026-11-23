@@ -40,6 +40,32 @@ class RShortcutManager;
 class RThreadManager;
 
 /**
+ * Relays the signals of RManager to Python.
+ *
+ * The manager is a function-local static that outlives the interpreter, and
+ * the wrapper and connections PySide attaches to a QObject must go while the
+ * interpreter is alive. RManager::reset() deletes this relay at exit for that
+ * reason, so Python connects here rather than to the manager.
+ *
+ * @ingroup group_domain
+ */
+class RManagerNotifier
+    : public QObject
+{
+    Q_OBJECT
+
+public:
+
+    using QObject::QObject;
+
+signals:
+
+    /// Relays RManager::currentViewChanged().
+    void currentViewChanged();
+
+}; /* end class RManagerNotifier */
+
+/**
  * @brief Singleton that owns the pilot main window and coordinates its
  * widgets, menus, and the active canvas drawing tool.
  *
@@ -163,6 +189,9 @@ public:
 
     RThreadManager * threadManager() { return m_thread_manager; }
 
+    /// The relay Python connects to for the manager's signals, or nullptr after reset().
+    RManagerNotifier * notifier() { return m_notifier; }
+
     /// Ask the application to leave its event loop. A no-op after reset().
     void quit();
 
@@ -263,6 +292,8 @@ private:
     RShortcutManager * m_shortcutManager = nullptr;
 
     RThreadManager * m_thread_manager = nullptr;
+
+    RManagerNotifier * m_notifier = nullptr;
 
     QMdiArea * m_mdiArea = nullptr;
 

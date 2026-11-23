@@ -199,6 +199,7 @@ public:
         static constexpr auto name = py_name;              \
     } /* end struct type_caster */
 
+QT_TYPE_CASTER(QObject, _("QObject"));
 QT_TYPE_CASTER(QWidget, _("QWidget"));
 QT_TYPE_CASTER(QAction, _("QAction"));
 QT_TYPE_CASTER(QActionGroup, _("QActionGroup"));
@@ -1157,6 +1158,14 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 {
                     return self.mdiArea();
                 })
+            .def_property_readonly(
+                "notifier",
+                [](wrapped_type & self) -> QObject *
+                {
+                    return self.notifier();
+                },
+                "A PySide QObject relaying the manager's signals: "
+                "currentViewChanged() after the current view changes.")
             //
             ;
 

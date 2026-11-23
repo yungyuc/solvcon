@@ -873,7 +873,7 @@ class ConsolePanel(base.PilotFeature):
         self._dock.setWidget(self._panel)
         self._mainWindow.addDockWidget(Qt.BottomDockWidgetArea, self._dock)
         self._dock.visibilityChanged.connect(self._sync_action)
-        self._mgr.mdiArea.subWindowActivated.connect(self._show_canvas)
+        self._mgr.notifier.currentViewChanged.connect(self._show_canvas)
         self._show_canvas()
         apputil.get_current_appenv().seed(agent_run=self.agent_run)
 
@@ -889,13 +889,12 @@ class ConsolePanel(base.PilotFeature):
         if error:
             self.write_message(error)
 
-    def _show_canvas(self, subwin=None):
+    def _show_canvas(self):
+        """Name the canvas of the current view, which the console's canvas
+        commands act on."""
         title = None
         if self._mgr.currentR2DWidget() is not None:
-            try:
-                title = self._mgr.mdiArea.currentSubWindow().windowTitle()
-            except (AttributeError, RuntimeError):
-                title = "2D canvas"
+            title = self._mgr.currentSubWindow().windowTitle()
         self._panel.set_canvas(title)
 
     def _navigate(self, offset):

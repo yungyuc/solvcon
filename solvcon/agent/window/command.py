@@ -11,8 +11,11 @@ The commands drive a window manager, a duck-typed target the GUI
 
     new_canvas() -> int
         Open a new 2D canvas window and return its stable id.
-    list_windows() -> list of {"id": int, "title": str, "active": bool}
-        Every open canvas window, in tab order.
+    list_windows() -> list of {"id": int, "title": str, "active": bool,
+                               "current": bool}
+        Every open canvas window, in tab order. "active" marks the window
+        with keyboard focus, "current" the one the view and draw commands
+        act on; they differ after code sets the current view.
     activate_window(window_id) -> None
         Make the window with the given id active.
     close_window(window_id) -> None
@@ -35,13 +38,17 @@ def _int(description):
 
 
 WINDOW = {"type": "object",
-          "description": "One open canvas window: id, title, active flag.",
+          "description": ("One open canvas window: id, title, and the "
+                          "active and current flags."),
           "properties": {
               "id": _int("Stable id of the canvas window."),
               "title": {**STRING, "description": "Window title text."},
               "active": {**BOOLEAN,
-                         "description": "True for the active window."}},
-          "required": ["id", "title", "active"],
+                         "description": "True for the window with focus."},
+              "current": {**BOOLEAN,
+                          "description": ("True for the window the view "
+                                          "and draw commands act on.")}},
+          "required": ["id", "title", "active", "current"],
           "additionalProperties": False}
 
 

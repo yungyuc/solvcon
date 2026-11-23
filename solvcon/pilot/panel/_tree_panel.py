@@ -881,12 +881,11 @@ class TreePanel(base.PilotFeature):
         self._mgr.mainWindow.addDockWidget(Qt.LeftDockWidgetArea,
                                            self._dock)
         self._dock.visibilityChanged.connect(self._action.setChecked)
-        mdi = self._mdi_area()
-        if mdi is not None:
-            mdi.subWindowActivated.connect(self._on_subwindow_activated)
+        self._mgr.notifier.currentViewChanged.connect(
+            self._on_current_view_changed)
 
-    def _on_subwindow_activated(self, _subwin):
-        """Re-select the tree when the active sub-window changes."""
+    def _on_current_view_changed(self):
+        """Re-select the tree when the current view changes."""
         if self._dock is not None and self._action.isChecked():
             QTimer.singleShot(0, self._sync)
 
@@ -928,8 +927,5 @@ class TreePanel(base.PilotFeature):
         widget = self._mgr.currentR3DWidget()
         if widget is not None:
             widget.showNormals(checked, self._mesh_tree.normal_scale())
-
-    def _mdi_area(self):
-        return self._mainWindow.centralWidget()
 
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4:

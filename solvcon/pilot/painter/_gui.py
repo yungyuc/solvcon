@@ -477,15 +477,16 @@ class Painter(base.PilotFeature):
             dock.visibilityChanged.connect(self._action.setChecked)
         self._dock = dock
         self._panel.set_canvas_source(self._mgr.currentR2DWidget)
-        mdi = self._mgr.mdiArea
-        if mdi is not None:
-            mdi.subWindowActivated.connect(self._on_subwindow_activated)
+        self._mgr.notifier.currentViewChanged.connect(
+            self._on_current_view_changed)
 
-    def _on_subwindow_activated(self, _subwin):
-        """Show the newly active canvas without waiting for the next poll."""
+    def _on_current_view_changed(self):
+        """Show the canvas of the new current view without waiting for the
+        next poll."""
         if self._panel is not None:
-            # The manager reports the active canvas once Qt has finished
-            # switching, which is after this signal.
+            # The change can be reported from inside add2DWidget, before the
+            # caller gives the canvas its world, or from an event filter,
+            # before the input reaches the widget; read once both are done.
             QtCore.QTimer.singleShot(0, self._panel.refresh)
 
     def present(self):

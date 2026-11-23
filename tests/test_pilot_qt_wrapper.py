@@ -40,6 +40,7 @@ mgr.add3DWidget()
 mgr.menu_model.group("camera.mode").checkedAction().objectName()
 mgr.mainWindow.windowTitle()
 mgr.mdiArea.subWindowList()
+mgr.notifier.currentViewChanged.connect(lambda: None)
 mgr.subWindowOf(canvas).close()
 QtCore.QCoreApplication.sendPostedEvents(
     None, QtCore.QEvent.Type.DeferredDelete)

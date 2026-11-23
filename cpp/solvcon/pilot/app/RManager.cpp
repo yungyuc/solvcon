@@ -159,6 +159,8 @@ RManager::RManager()
     m_shortcutManager = new RShortcutManager(this);
     m_thread_manager = new RThreadManager(this);
     m_thread_manager->start();
+    m_notifier = new RManagerNotifier;
+    QObject::connect(this, &RManager::currentViewChanged, m_notifier, &RManagerNotifier::currentViewChanged);
     // Do not call setUp() from the constructor.  Windows may crash with
     // "exited with code -1073740791".  The reason is not yet clarified.
 }
@@ -194,6 +196,10 @@ void RManager::reset()
     {
         m_menuModel->clear();
     }
+    // Python wraps the relay and connects to it; let both go while the
+    // interpreter is still alive.
+    delete m_notifier;
+    m_notifier = nullptr;
     // Tear the theme controller down before the application it connected to, so
     // its OS color-scheme connection unwinds while that application is alive.
     delete m_themeManager;

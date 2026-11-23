@@ -43,8 +43,10 @@ class FakeWindowManager:
         return window_id
 
     def list_windows(self):
+        # The fake has no separate current view; it follows the focus.
         return [{"id": w["id"], "title": w["title"],
-                 "active": w["id"] == self._active}
+                 "active": w["id"] == self._active,
+                 "current": w["id"] == self._active}
                 for w in self._windows]
 
     def activate_window(self, window_id):
