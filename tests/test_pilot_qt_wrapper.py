@@ -29,12 +29,26 @@ except ImportError:
 
 _EXIT_HELPER_ENV = 'SOLVCON_QT_WRAPPER_EXIT_HELPER'
 
+_WINDOW_GONE = 'main window destroyed, application alive:'
+_DOCK_HIDDEN = 'dock hidden in area:'
+
 # Keep wrappers of several kinds, let one object die before exit and the
-# rest go with the application.
+# rest go with the application. Report whether the main window goes while
+# the application is still alive. The window is shown, off screen, with a
+# dock, whose listener reads the window as the dock hides at exit.
 _KEEP_WRAPPERS = """
 from solvcon import pilot
-from PySide6 import QtCore
+from PySide6 import QtCore, QtWidgets
 mgr = pilot.RManager.instance.setUp()
+win = mgr.mainWindow
+win.destroyed.connect(lambda: print(
+    %r, QtCore.QCoreApplication.instance() is not None, flush=True))
+win.setAttribute(QtCore.Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+dock = QtWidgets.QDockWidget("probe", win)
+win.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+dock.visibilityChanged.connect(lambda shown: shown or print(
+    %r, dock.parentWidget().dockWidgetArea(dock).name, flush=True))
+mgr.show()
 canvas = mgr.add2DWidget()
 mgr.add3DWidget()
 mgr.menu_model.group("camera.mode").checkedAction().objectName()
@@ -44,7 +58,7 @@ mgr.notifier.currentViewChanged.connect(lambda: None)
 mgr.subWindowOf(canvas).close()
 QtCore.QCoreApplication.sendPostedEvents(
     None, QtCore.QEvent.Type.DeferredDelete)
-"""
+""" % (_WINDOW_GONE, _DOCK_HIDDEN)
 
 # What a process that tears down badly leaves on its output.
 _UNCLEAN = ('Traceback', 'Fatal Python error', 'Exception ignored',
@@ -75,6 +89,10 @@ class QtWrapperExitTC(unittest.TestCase):
         self.assertEqual(0, completed.returncode, msg=out)
         for marker in _UNCLEAN:
             self.assertNotIn(marker, out)
+        # reset() deletes the window before the application, and hides it
+        # first, so the dock's listener sees a whole window.
+        self.assertIn(_WINDOW_GONE + ' True', out)
+        self.assertIn(_DOCK_HIDDEN + ' LeftDockWidgetArea', out)
         return out
 
     def test_the_pilot_owned_application_exits_cleanly(self):

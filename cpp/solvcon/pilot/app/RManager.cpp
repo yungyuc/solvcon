@@ -6,6 +6,7 @@
 #include <solvcon/pilot/app/RManager.hpp> // Must be the first include.
 
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include <QAction>
@@ -156,15 +157,22 @@ RManager & RManager::setUp()
 
 void RManager::reset()
 {
-    // Nullify all child pointers before destroying QApplication.
-    // Qt's parent-child mechanism will delete widget children; we only
-    // need to ensure our raw pointers don't dangle after the call.
     m_torn_down = true;
     // Empty the menu model while the application and its widgets are alive.
     if (RMenuModel * model = menuModel())
     {
         model->clear();
     }
+    // Delete the window while its application and the rest of the session
+    // are alive: its widgets and their RHI resources go before the
+    // application does, whoever owns it, and a slot that runs as the widgets
+    // go still finds the theme, shortcut, and thread managers. The theme
+    // manager styles the window's chrome, so it forgets the window first.
+    if (m_themeManager)
+    {
+        m_themeManager->setWindow(nullptr);
+    }
+    delete std::exchange(m_window, nullptr);
     // Python wraps the relay and connects to it; let both go while the
     // interpreter is still alive.
     delete m_notifier;
@@ -190,14 +198,8 @@ void RManager::reset()
         delete m_thread_manager;
         m_thread_manager = nullptr;
     }
-    if (m_core && m_window)
-    {
-        // A borrowed application outlives the manager's widgets.
-        m_window->detach(m_core);
-    }
     m_owned_core.reset(); // Deletes the application only if the pilot made it.
     m_core = nullptr;
-    m_window = nullptr;
 }
 
 void RManager::quit()

@@ -66,7 +66,33 @@ RProjectWindow::RProjectWindow()
 
 RProjectWindow::~RProjectWindow()
 {
-    delete m_main_window;
+    // Widgets must not outlive their application. When it is gone already
+    // (a borrowed one shut down first), leak the tree, as the manager did
+    // before it deleted windows.
+    if (QCoreApplication::instance() == nullptr)
+    {
+        return;
+    }
+    if (m_app)
+    {
+        m_app->removeEventFilter(this);
+    }
+    if (m_mdi_area)
+    {
+        // Python listens to the MDI area too, for example to move the
+        // File > Close shortcut; the area deactivates its sub-windows as it
+        // goes.
+        m_mdi_area->blockSignals(true);
+    }
+    blockSignals(true);
+    if (m_main_window)
+    {
+        // Hide while the window is whole. Hiding a shown window hides its
+        // docks, whose visibilityChanged reaches Python; deleting it shown
+        // would emit that from inside ~QMainWindow.
+        m_main_window->hide();
+        delete m_main_window;
+    }
 }
 
 void RProjectWindow::setUp(RThemeManager * theme, RShortcutManager * shortcuts, QCoreApplication * app)
@@ -76,12 +102,8 @@ void RProjectWindow::setUp(RThemeManager * theme, RShortcutManager * shortcuts, 
     setUpMenu(theme, shortcuts);
     // A press, a key, or a focus-in lands on the widget inside a sub-window,
     // not on the sub-window, so watch them application-wide.
+    m_app = app;
     app->installEventFilter(this);
-}
-
-void RProjectWindow::detach(QCoreApplication * app)
-{
-    app->removeEventFilter(this);
 }
 
 void RProjectWindow::setCurrentView(QWidget * widget)

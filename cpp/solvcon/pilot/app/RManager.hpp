@@ -233,7 +233,7 @@ private:
     /// Owns the application only when the pilot created it, null otherwise.
     std::unique_ptr<QApplication> m_owned_core = nullptr;
 
-    /// The project window. The session holds one; reset() lets it go.
+    /// The project window, owned. The session holds one; reset() deletes it.
     RProjectWindow * m_window = nullptr;
 
     /**

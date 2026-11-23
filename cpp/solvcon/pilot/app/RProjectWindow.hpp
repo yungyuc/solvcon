@@ -70,9 +70,6 @@ public:
      */
     void setUp(RThemeManager * theme, RShortcutManager * shortcuts, QCoreApplication * app);
 
-    /// Stop watching the events of @p app, which outlives the window when it is borrowed.
-    void detach(QCoreApplication * app);
-
     QMainWindow * mainWindow() { return m_main_window; }
 
     /// The MDI area, or nullptr before setUp().
@@ -161,6 +158,9 @@ private:
      * first, which the bindings forbid but cannot prevent.
      */
     QPointer<QMainWindow> m_main_window;
+
+    /// The application whose events the window watches; it may outlive the window.
+    QPointer<QCoreApplication> m_app;
 
     QPointer<QMdiArea> m_mdi_area;
 
