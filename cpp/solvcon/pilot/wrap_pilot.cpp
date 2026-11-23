@@ -16,6 +16,7 @@
 #include <solvcon/pilot/theme/RThemeManager.hpp>
 #include <solvcon/pilot/pilot.hpp>
 
+#include <cassert>
 #include <optional>
 
 #include <QAction>
@@ -25,7 +26,96 @@
 #include <QMenu>
 #include <QPixmap>
 #include <QPointer>
+#include <QSet>
 #include <QString>
+
+namespace
+{
+
+bool python_is_finalizing()
+{
+#if PY_VERSION_HEX >= 0x030D0000
+    return Py_IsFinalizing() != 0;
+#else
+    return _Py_IsFinalizing() != 0;
+#endif
+}
+
+/**
+ * Keep the PySide wrapper of a C++-owned @p object alive until the object is
+ * destroyed. PySide ties the wrapper of what a method returns to the wrapper
+ * the method was called on, and invalidates it when that wrapper is
+ * collected. A wrapper made here has nothing holding it, so without this a
+ * temporary such as `mgr.menu_model.group(id)` would take everything reached
+ * through it down with it. A wrapper Python created stays Python's to manage.
+ *
+ * PySide invalidates the wrapper when the object is destroyed, so a kept
+ * wrapper never stands for a dead object. A dead child wrapper may still be
+ * referenced from the parent information of a live parent wrapper; that is
+ * PySide's own bookkeeping and outlives this function's reference.
+ *
+ * Two rules follow for the code that uses these objects:
+ *
+ * - Python must not take ownership of, or delete, an object C++ created:
+ *   no unparenting a sub-window after removeSubWindow(), and no
+ *   shiboken6.delete() on it. The reference lasts until Qt destroys the
+ *   object, so a taken-over object is never collected, and a delete from
+ *   Python leaves PySide's parent records pointing at freed memory. The
+ *   life of such an object ends in C++.
+ * - Code that holds the GIL must never block waiting on the GUI thread. The
+ *   release takes the GIL on the thread that destroys the object, so closing
+ *   a window there would deadlock.
+ */
+void keep_wrapper_alive(QObject * object, PyObject * wrapper)
+{
+    namespace py = pybind11;
+
+    // Touched only with the GIL held. This function runs inside a Python
+    // call, which may come from an RThreadManager worker, and Qt may destroy
+    // the object on a thread other than the one that kept it. Leaked on
+    // purpose, like the callable below: a kept object can be destroyed during
+    // static destruction, after a function-local static set is gone, and a
+    // static py::object would be released after the interpreter is gone.
+    static auto * kept = new QSet<QObject const *>;
+    assert(PyGILState_Check() != 0);
+    if (kept->contains(object))
+    {
+        return;
+    }
+    static auto * created_by_python = new py::object(py::module_::import("shiboken6").attr("createdByPython"));
+    if ((*created_by_python)(py::handle(wrapper)).cast<bool>())
+    {
+        return;
+    }
+    kept->insert(object);
+    Py_INCREF(wrapper);
+    QObject::connect(
+        object,
+        &QObject::destroyed,
+        [object, wrapper]()
+        {
+            if (Py_IsInitialized() == 0)
+            {
+                // No interpreter, so no Python call can race for the set.
+                kept->remove(object);
+                return;
+            }
+            if (python_is_finalizing() && PyGILState_Check() == 0)
+            {
+                // A thread that takes the GIL during finalization is stopped
+                // for good; the interpreter is releasing every wrapper anyway.
+                // The entry stays in the set, so an object created later at
+                // the same address would not be kept; nothing is created
+                // after finalization starts.
+                return;
+            }
+            py::gil_scoped_acquire const gil;
+            kept->remove(object);
+            Py_DECREF(wrapper);
+        });
+}
+
+} /* end namespace */
 
 namespace pybind11
 {
@@ -93,6 +183,10 @@ public:
         if (to)
         {
             p = PySide::getWrapperForQObject(src, to);
+        }
+        if (p)
+        {
+            keep_wrapper_alive(src, p);
         }
         return pybind11::handle(p);
     }

@@ -55,10 +55,6 @@ class DomainViewer(object):
         self._viewer = view
         self._subwin = None
         self._close_filter = None
-        # Held for the viewer's lifetime: a throwaway mdiArea wrapper is
-        # garbage-collected right after use, invalidating any sub-window
-        # handle taken through it.
-        self._mdi = None
         # The legend, its edge, and the scale it was last given.  The scale
         # outlives the widget, which is rebuilt whenever the edge turns it
         # through a right angle or the sub-window is closed under it.
@@ -81,9 +77,7 @@ class DomainViewer(object):
         self._viewer.showAxis(True)
         # Delete the sub-window on close and watch for that close, so a
         # close from any source reaches `closed` before Qt frees the widget.
-        if self._mdi is None:
-            self._mdi = self._mgr.mdiArea
-        self._subwin = self._mdi.activeSubWindow()
+        self._subwin = self._mgr.mdiArea.activeSubWindow()
         if self._subwin is not None:
             self._subwin.setAttribute(Qt.WA_DeleteOnClose, True)
             self._close_filter = base.SubWindowCloseFilter(
