@@ -1116,6 +1116,25 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 "The sub-window that hosts the widget, or None when the "
                 "widget is not in the manager's MDI area. It does not depend "
                 "on which sub-window is active.")
+            .def_for_widget(
+                "setCurrentView",
+                [](wrapped_type & self, QWidget * widget)
+                {
+                    self.setCurrentView(widget);
+                },
+                "Make the sub-window hosting the widget the current view "
+                "without activating it. The current-widget queries and the "
+                "Edit, View > Camera, and draw-tool menu items act on it until "
+                "the user presses, types, or moves the focus into another "
+                "sub-window, another one is activated, or it closes. Raises "
+                "ValueError for a widget outside the manager's sub-windows.")
+            .def(
+                "currentSubWindow",
+                [](wrapped_type & self)
+                {
+                    return self.currentSubWindow();
+                },
+                "The sub-window of the current view, or None.")
             .def(
                 "domainWidgetOf",
                 [](wrapped_type &, QMdiSubWindow * subwin)

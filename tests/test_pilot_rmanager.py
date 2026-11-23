@@ -194,4 +194,196 @@ class RManagerSubWindowOfTC(unittest.TestCase):
         self.assertIsNone(self.mgr.subWindowOf(widget))
 
 
+@testing.requires_pilot
+class RManagerCurrentViewTC(unittest.TestCase):
+    """Code sets the current view without activating a sub-window, and the
+    user's touch takes it back.
+
+    The main window is never shown here, so no sub-window ever becomes
+    active the way a click makes it, and Qt sends no input. The tests move
+    the current view with setCurrentView and send the events Qt would.
+    """
+
+    def setUp(self):
+        self.mgr = pilot.RManager.instance.setUp()
+        self.area = self.mgr.mdiArea
+        self.model = self.mgr.menu_model
+        # A new canvas takes the manager's tool, which an earlier test in the
+        # process may have left on anything.
+        self.mgr.setDrawTool("select")
+        self.first = self.mgr.add2DWidget()
+        self.second = self.mgr.add2DWidget()
+        self.focused = self.area.activeSubWindow()
+
+    def tearDown(self):
+        self.mgr.setDrawTool("select")
+        self.area.closeAllSubWindows()
+
+    def _undoable_worlds(self):
+        """Give each canvas a world with one undoable shape."""
+        worlds = []
+        for canvas in (self.first, self.second):
+            world = solvcon.WorldFp64()
+            canvas.updateWorld(world)
+            world.add_circle(10, 10, 1)
+            worlds.append(world)
+        return worlds
+
+    def test_the_queries_follow_the_set_view_not_the_focus(self):
+        self.assertIs(self.second, self.mgr.currentR2DWidget())
+        self.mgr.setCurrentView(self.first)
+        self.assertIs(self.first, self.mgr.currentR2DWidget())
+        self.assertIs(self.mgr.subWindowOf(self.first),
+                      self.mgr.currentSubWindow())
+        self.assertIs(self.focused, self.area.activeSubWindow())
+
+    def test_undo_acts_on_the_set_view(self):
+        worlds = self._undoable_worlds()
+        self.mgr.setCurrentView(self.first)
+        self.model.action("edit.undo").trigger()
+        self.assertEqual([False, True], [w.can_undo for w in worlds])
+
+    def test_the_draw_tool_reaches_the_set_view(self):
+        self.mgr.setDrawTool("line")
+        self.assertEqual("line", self.second.drawTool)
+        self.assertNotEqual("line", self.first.drawTool)
+        self.mgr.setCurrentView(self.first)
+        self.assertEqual("line", self.first.drawTool)
+
+    def test_a_viewer_is_set_by_its_widget(self):
+        mesh = _make_3d_mesh()
+        viewer = self.mgr.add3DWidget()
+        viewer.updateMesh(mesh)
+        self.mgr.setCurrentView(self.first)
+        self.assertIsNone(self.mgr.currentR3DWidget())
+        self.mgr.setCurrentView(viewer)
+        self.assertIs(viewer, self.mgr.currentR3DWidget())
+        pose = tuple(viewer.cameraPosition)
+        self.mgr.setCurrentView(self.first)
+        self.model.action("camera.move_up").trigger()
+        self.assertEqual(pose, tuple(viewer.cameraPosition))
+
+    def test_an_activation_takes_over_from_the_set_view(self):
+        self.mgr.setCurrentView(self.first)
+        third = self.mgr.add2DWidget()
+        self.assertIs(third, self.mgr.currentR2DWidget())
+        self.mgr.setCurrentView(self.first)
+        self.area.setActiveSubWindow(self.mgr.subWindowOf(self.second))
+        self.assertIs(self.second, self.mgr.currentR2DWidget())
+
+    def _touch(self, canvas, *kinds):
+        from PySide6 import QtGui, QtWidgets
+        target = self.mgr.subWindowOf(canvas).widget()
+        pos = QtCore.QPointF(5, 5)
+        for kind in kinds:
+            if isinstance(kind, QtCore.Qt.FocusReason):
+                event = QtGui.QFocusEvent(QtCore.QEvent.Type.FocusIn, kind)
+            else:
+                event = QtGui.QMouseEvent(
+                    kind, pos, target.mapToGlobal(pos),
+                    QtCore.Qt.LeftButton, QtCore.Qt.NoButton,
+                    QtCore.Qt.NoModifier)
+            QtWidgets.QApplication.sendEvent(target, event)
+
+    def test_a_press_on_the_focused_window_takes_the_view_back(self):
+        # The user sees only the focused canvas; after a click there, undo
+        # must not edit the canvas code chose earlier.
+        worlds = self._undoable_worlds()
+        self.mgr.setCurrentView(self.first)
+        self.assertIs(self.focused, self.mgr.subWindowOf(self.second))
+        self._touch(self.second, QtCore.QEvent.Type.MouseButtonPress,
+                    QtCore.QEvent.Type.MouseButtonRelease)
+        self.assertIs(self.second, self.mgr.currentR2DWidget())
+        self.model.action("edit.undo").trigger()
+        self.assertEqual([True, False], [w.can_undo for w in worlds])
+
+    def test_a_focus_in_takes_the_view_back(self):
+        for reason in (QtCore.Qt.MouseFocusReason, QtCore.Qt.TabFocusReason,
+                       QtCore.Qt.BacktabFocusReason,
+                       QtCore.Qt.ShortcutFocusReason):
+            with self.subTest(reason=reason):
+                self.mgr.setCurrentView(self.first)
+                self._touch(self.second, reason)
+                self.assertIs(self.second, self.mgr.currentR2DWidget())
+
+    def test_focus_qt_restores_keeps_the_set_view(self):
+        # A menu that closes hands the focus back with PopupFocusReason, and
+        # reactivating the window does so with ActiveWindowFocusReason; the
+        # off-screen window here never gets either for real, so send what Qt
+        # sends.
+        for reason in (QtCore.Qt.PopupFocusReason,
+                       QtCore.Qt.ActiveWindowFocusReason,
+                       QtCore.Qt.MenuBarFocusReason,
+                       QtCore.Qt.OtherFocusReason):
+            with self.subTest(reason=reason):
+                self.mgr.setCurrentView(self.first)
+                self._touch(self.second, reason)
+                self.assertIs(self.first, self.mgr.currentR2DWidget())
+
+    def test_a_menu_command_acts_on_the_set_view(self):
+        # QMenuPrivate::activateAction closes the popups, which restores the
+        # focus with a PopupFocusReason FocusIn, before it triggers the
+        # action. Replay that order: the undo must still reach the set view.
+        worlds = self._undoable_worlds()
+        self.mgr.setCurrentView(self.first)
+        self._touch(self.second, QtCore.Qt.PopupFocusReason)
+        self.model.action("edit.undo").trigger()
+        self.assertEqual([False, True], [w.can_undo for w in worlds])
+
+    def test_a_key_in_the_focused_viewer_takes_the_view_back(self):
+        # Escape is a widget shortcut on the focused viewer while the reset
+        # action resets the current one; the key's ShortcutOverride, which
+        # Qt sends before matching the shortcut, has to align the two.
+        from PySide6 import QtGui, QtWidgets
+        mesh = _make_3d_mesh()
+        first = self.mgr.add3DWidget()
+        first.updateMesh(mesh)
+        focused = self.mgr.add3DWidget()
+        focused.updateMesh(mesh)
+        self.mgr.setCurrentView(first)
+        host = self.mgr.subWindowOf(focused).widget()
+        QtWidgets.QApplication.sendEvent(host, QtGui.QKeyEvent(
+            QtCore.QEvent.Type.ShortcutOverride, QtCore.Qt.Key_Escape,
+            QtCore.Qt.NoModifier))
+        self.assertIs(focused, self.mgr.currentR3DWidget())
+
+    def test_closing_the_set_view_falls_back_to_the_focus(self):
+        self.mgr.setCurrentView(self.first)
+        self.mgr.subWindowOf(self.first).close()
+        self.assertIs(self.second, self.mgr.currentR2DWidget())
+
+    def test_deleting_the_last_view_leaves_none(self):
+        # A sub-window deleted outright does not hide first; only its
+        # destruction tells the manager the view is gone. Qt deletes them,
+        # since Python must not take over what C++ created.
+        ours = [self.mgr.subWindowOf(c) for c in (self.first, self.second)]
+        # Earlier tests in the process may have left sub-windows open.
+        for subwin in self.area.subWindowList():
+            if subwin not in ours:
+                subwin.close()
+        self.mgr.setCurrentView(self.first)
+        for subwin in ours:
+            subwin.deleteLater()
+        QtCore.QCoreApplication.sendPostedEvents(
+            None, QtCore.QEvent.Type.DeferredDelete)
+        QtCore.QCoreApplication.sendPostedEvents()
+        self.assertIsNone(self.mgr.currentSubWindow())
+        self.assertIsNone(self.mgr.currentR2DWidget())
+
+    def test_file_close_stays_on_the_focus(self):
+        from solvcon.pilot.base import _gui
+        # With no focused sub-window the action closes the main window.
+        self.assertIsNotNone(self.focused)
+        self.mgr.setCurrentView(self.first)
+        _gui.close_active_window(self.mgr)
+        self.assertTrue(self.focused.isHidden())
+        self.assertFalse(self.mgr.subWindowOf(self.first).isHidden())
+
+    def test_a_widget_outside_the_manager_is_rejected(self):
+        from PySide6 import QtWidgets
+        with self.assertRaises(ValueError):
+            self.mgr.setCurrentView(QtWidgets.QWidget())
+        self.assertIs(self.second, self.mgr.currentR2DWidget())
+
+
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4 tw=79:

@@ -25,6 +25,7 @@
 #include <QMainWindow>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QPointer>
 #include <QSize>
 #include <Qt>
 
@@ -44,7 +45,7 @@ class RThreadManager;
  *
  * The manager holds the QCoreApplication and the QMainWindow with its menus
  * and MDI area. It creates and tracks the 2D and 3D domain widgets, exposes
- * the currently focused canvas, and routes the active drawing tool to it.
+ * the canvas of the current view, and routes the active drawing tool to it.
  * Access the single instance through instance().
  *
  * @ingroup group_domain
@@ -81,10 +82,28 @@ public:
     /// Open a 2D canvas in a new, active sub-window. Throws std::logic_error before setUp().
     R2DWidget * add2DWidget();
 
-    /// The viewer in the current sub-window, or nullptr when that holds no 3D viewer.
+    /**
+     * Make the sub-window that hosts @p widget the current view, without
+     * activating it or moving the keyboard focus. The current view is what
+     * currentR2DWidget(), currentR3DWidget(), and the Edit, View > Camera, and
+     * draw-tool menu items act on; File > Close keeps acting on the focused
+     * sub-window. The next sub-window the user presses a mouse button or a
+     * key in, moves keyboard focus into (by mouse, Tab, or a shortcut), or
+     * activates becomes the current view, even one that already had focus.
+     * Focus that Qt restores after a menu or on window reactivation does not
+     * count. When the current view is closed or hidden, the focused
+     * sub-window takes over. Throws std::invalid_argument when no sub-window
+     * of this manager hosts @p widget.
+     */
+    void setCurrentView(QWidget * widget);
+
+    /// The sub-window of the current view, or nullptr when there is none.
+    QMdiSubWindow * currentSubWindow() const;
+
+    /// The viewer of the current view, or nullptr when that holds no 3D viewer.
     RDomainWidget * currentR3DWidget() const;
 
-    /// The canvas in the current sub-window, or nullptr when that holds no 2D canvas.
+    /// The canvas of the current view, or nullptr when that holds no 2D canvas.
     R2DWidget * currentR2DWidget() const;
 
     std::vector<RDomainWidget *> list3DWidgets() const;
@@ -93,8 +112,8 @@ public:
     /**
      * The sub-window of this manager's MDI area that hosts @p widget, directly
      * or through a container such as the 3D viewer host. Returns nullptr for a
-     * null widget or one hosted anywhere else. It does not depend on which
-     * sub-window is active.
+     * null widget or one hosted anywhere else. Unlike currentSubWindow(), it
+     * does not depend on which sub-window is active or current.
      */
     QMdiSubWindow * subWindowOf(QWidget * widget) const;
 
@@ -107,7 +126,7 @@ public:
     /// Name of the active canvas drawing tool.
     std::string drawTool() const { return m_draw_tool; }
 
-    /// Select the active drawing tool and apply it to the focused 2D canvas.
+    /// Select the active drawing tool and apply it to the canvas of the current view.
     void setDrawTool(std::string const & name);
 
     QMainWindow * mainWindow() { return m_mainWindow; }
@@ -146,6 +165,21 @@ public:
     /// Only call reset() when the program is to be stopped.
     void reset();
 
+signals:
+
+    /**
+     * Emitted when currentSubWindow() changes, including to nullptr. It can
+     * fire inside addSubWindow() and the widget factories, before they
+     * return, and from the event filter, before the input that touched a
+     * sub-window reaches its widget.
+     */
+    void currentViewChanged();
+
+protected:
+
+    /// Watch the user's presses, keys, and focus changes in every sub-window, and the current one hiding.
+    bool eventFilter(QObject * watched, QEvent * event) override;
+
 private:
 
     RManager();
@@ -160,8 +194,8 @@ private:
     void primeRhiComposition();
 
     /**
-     * Push the active draw tool onto the focused 2D canvas, if any. A
-     * no-op when the focused subwindow is not a 2D canvas.
+     * Push the active draw tool onto the 2D canvas of the current view, if
+     * any. A no-op when the current view is not a 2D canvas.
      */
     void applyDrawTool();
 
@@ -171,13 +205,19 @@ private:
     void setUpCameraMovementMenuItems() const;
 
     /**
-     * Undo or redo the most recent shape change on the focused 2D canvas,
-     * then repaint it. A no-op when no 2D canvas is focused.
+     * Undo or redo the most recent shape change on the 2D canvas of the
+     * current view, then repaint it. A no-op when that is not a 2D canvas.
      */
     void undoCanvas() const;
     void redoCanvas() const;
 
     std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
+
+    /// Track @p subwin as the current view and report the change, if any.
+    void setCurrentSubWindow(QMdiSubWindow * subwin);
+
+    /// Emit currentViewChanged() when currentSubWindow() differs from what was last reported.
+    void refreshCurrentView();
 
     /// Throw std::logic_error naming @p caller unless setUp() has built the MDI area.
     void requireSetUp(char const * caller) const;
@@ -221,6 +261,20 @@ private:
     RDomainWidget * m_rhi_primer = nullptr;
 
     /**
+     * The sub-window last made current by setCurrentView(), by activation, or
+     * by a user touch. It is the current view while it is open and shown.
+     */
+    QPointer<QMdiSubWindow> m_current_subwin;
+
+    /**
+     * What currentViewChanged() last reported, to emit only on a change. It
+     * reads null once that sub-window is destroyed, so m_reported_a_view
+     * tells a destroyed view from having reported none.
+     */
+    QPointer<QMdiSubWindow> m_reported_subwin;
+    bool m_reported_a_view = false;
+
+    /**
      * Active canvas drawing tool, shared by every 2D canvas. Starts on
      * the default tool (select).
      */
@@ -238,6 +292,9 @@ QMdiSubWindow * RManager::addSubWindow(Args &&... args)
     }
     subwin->show();
     m_mdiArea->setActiveSubWindow(subwin);
+    // Activation does not reach a window that is never active, as in tests
+    // run off screen, so make the new sub-window current explicitly.
+    setCurrentSubWindow(subwin);
     return subwin;
 }
 
