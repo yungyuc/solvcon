@@ -209,17 +209,9 @@ signals:
      */
     void currentViewChanged();
 
-protected:
-
-    /// Watch the user's presses, keys, and focus changes in every sub-window, and the current one hiding.
-    bool eventFilter(QObject * watched, QEvent * event) override;
-
 private:
 
     RManager();
-
-    /// Follow activations, the user's touches, and the draw tool for the current view.
-    void watchCurrentView();
 
     void setUpMenu();
 
@@ -242,12 +234,6 @@ private:
     void redoCanvas() const;
 
     std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
-
-    /// Track @p subwin as the current view and report the change, if any.
-    void setCurrentSubWindow(QMdiSubWindow * subwin);
-
-    /// Emit currentViewChanged() when currentSubWindow() differs from what was last reported.
-    void refreshCurrentView();
 
     /// Throw std::logic_error naming @p caller unless setUp() has built the MDI area.
     void requireSetUp(char const * caller) const;
@@ -294,20 +280,6 @@ private:
     RManagerNotifier * m_notifier = nullptr;
 
     /**
-     * The sub-window last made current by setCurrentView(), by activation, or
-     * by a user touch. It is the current view while it is open and shown.
-     */
-    QPointer<QMdiSubWindow> m_current_subwin;
-
-    /**
-     * What currentViewChanged() last reported, to emit only on a change. It
-     * reads null once that sub-window is destroyed, so m_reported_a_view
-     * tells a destroyed view from having reported none.
-     */
-    QPointer<QMdiSubWindow> m_reported_subwin;
-    bool m_reported_a_view = false;
-
-    /**
      * Active canvas drawing tool, shared by every 2D canvas. Starts on
      * the default tool (select).
      */
@@ -318,17 +290,7 @@ template <typename... Args>
 QMdiSubWindow * RManager::addSubWindow(Args &&... args)
 {
     requireSetUp("addSubWindow");
-    QMdiSubWindow * subwin = mdiArea()->addSubWindow(std::forward<Args>(args)...);
-    if (subwin == nullptr)
-    {
-        throw std::invalid_argument("RManager::addSubWindow: the MDI area did not accept the widget");
-    }
-    subwin->show();
-    mdiArea()->setActiveSubWindow(subwin);
-    // Activation does not reach a window that is never active, as in tests
-    // run off screen, so make the new sub-window current explicitly.
-    setCurrentSubWindow(subwin);
-    return subwin;
+    return m_window->addSubWindow(std::forward<Args>(args)...);
 }
 
 } /* end namespace solvcon */

@@ -13,7 +13,6 @@
 #include <QActionGroup>
 #include <QColor>
 #include <QEvent>
-#include <QFocusEvent>
 #include <QLayout>
 #include <QMdiSubWindow>
 #include <QMenu>
@@ -100,31 +99,6 @@ void SubWindowGrip::place()
     m_grip->raise();
 }
 
-/**
- * Whether a focus change for @p reason is the user choosing a widget, as
- * opposed to Qt restoring the focus.
- *
- * Qt hands the focus back with PopupFocusReason when a menu closes, and it
- * does so before the chosen menu action runs (QMenuPrivate::activateAction
- * hides the popups first), and with ActiveWindowFocusReason when the window
- * is reactivated. Neither is the user picking a sub-window, and counting them
- * would turn a menu command away from the current view. OtherFocusReason is
- * code calling setFocus().
- */
-bool is_user_focus(Qt::FocusReason reason)
-{
-    switch (reason)
-    {
-    case Qt::MouseFocusReason:
-    case Qt::TabFocusReason:
-    case Qt::BacktabFocusReason:
-    case Qt::ShortcutFocusReason:
-        return true;
-    default:
-        return false;
-    }
-}
-
 } /* end namespace */
 
 RManager & RManager::instance()
@@ -152,6 +126,7 @@ RManager::RManager()
     }
 
     m_window = new RProjectWindow;
+    QObject::connect(m_window, &RProjectWindow::currentViewChanged, this, &RManager::currentViewChanged);
     // Parented to the manager to make color-scheme survive a window rebuild.
     m_themeManager = new RThemeManager(this);
     // Shortcut resolver: C++ uses applyTo; Python uses apply_shortcut.
@@ -175,8 +150,10 @@ RManager & RManager::setUp()
         // Paint the style and palette for widgets to follow.
         this->m_themeManager->setWindow(mainWindow());
         this->m_themeManager->apply();
-        m_window->setUp(m_themeManager);
-        this->watchCurrentView();
+        m_window->setUp(m_themeManager, m_core);
+        // Keep the current 2D canvas in step with the active draw tool, so the
+        // single Painter toolbox always drives the canvas of the current view.
+        QObject::connect(this, &RManager::currentViewChanged, this, &RManager::applyDrawTool);
         this->setUpMenu();
 
         m_already_setup = true;
@@ -220,18 +197,15 @@ void RManager::reset()
         delete m_thread_manager;
         m_thread_manager = nullptr;
     }
-    if (m_core)
+    if (m_core && m_window)
     {
         // A borrowed application outlives the manager's widgets.
-        m_core->removeEventFilter(this);
+        m_window->detach(m_core);
     }
     m_owned_core.reset(); // Deletes the application only if the pilot made it.
     m_core = nullptr;
     m_menuModel = nullptr;
     m_window = nullptr;
-    m_current_subwin = nullptr;
-    m_reported_subwin = nullptr;
-    m_reported_a_view = false;
 }
 
 void RManager::quit()
@@ -381,96 +355,16 @@ R2DWidget * RManager::add2DWidget()
 
 void RManager::setCurrentView(QWidget * widget)
 {
-    QMdiSubWindow * subwin = subWindowOf(widget);
-    if (subwin == nullptr)
+    if (m_window == nullptr)
     {
         throw std::invalid_argument("RManager::setCurrentView: the widget is not in a sub-window of the manager");
     }
-    setCurrentSubWindow(subwin);
+    m_window->setCurrentView(widget);
 }
 
 QMdiSubWindow * RManager::currentSubWindow() const
 {
-    QMdiArea * const area = mdiArea();
-    if (area == nullptr)
-    {
-        return nullptr;
-    }
-    if (m_current_subwin && !m_current_subwin->isHidden() && m_current_subwin->mdiArea() == area)
-    {
-        return m_current_subwin;
-    }
-    return area->currentSubWindow();
-}
-
-void RManager::setCurrentSubWindow(QMdiSubWindow * subwin)
-{
-    if (subwin != m_current_subwin)
-    {
-        m_current_subwin = subwin;
-        if (subwin)
-        {
-            // Hide arrives through the application event filter when the
-            // sub-window closes, well before it is deleted. A sub-window
-            // deleted outright reports through destroyed, queued until the
-            // MDI area has let go of it.
-            QObject::connect(
-                subwin,
-                &QObject::destroyed,
-                this,
-                &RManager::refreshCurrentView,
-                static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
-        }
-    }
-    refreshCurrentView();
-}
-
-void RManager::refreshCurrentView()
-{
-    QMdiSubWindow * const current = currentSubWindow();
-    if (current != m_reported_subwin || (current == nullptr && m_reported_a_view))
-    {
-        m_reported_subwin = current;
-        m_reported_a_view = current != nullptr;
-        emit currentViewChanged();
-    }
-}
-
-bool RManager::eventFilter(QObject * watched, QEvent * event)
-{
-    switch (event->type())
-    {
-    case QEvent::FocusIn:
-        if (!is_user_focus(static_cast<QFocusEvent const *>(event)->reason()))
-        {
-            break;
-        }
-        [[fallthrough]];
-    case QEvent::MouseButtonPress:
-    case QEvent::ShortcutOverride:
-        // What the user last touched is what the menus act on, even when it
-        // already had focus and no activation follows. A key reaches the
-        // focused widget as ShortcutOverride before any shortcut fires, so a
-        // shortcut typed into a sub-window acts on that sub-window.
-        if (auto * widget = qobject_cast<QWidget *>(watched))
-        {
-            if (QMdiSubWindow * subwin = subWindowOf(widget))
-            {
-                setCurrentSubWindow(subwin);
-            }
-        }
-        break;
-    case QEvent::Hide:
-    case QEvent::Show:
-        if (watched == m_current_subwin)
-        {
-            refreshCurrentView();
-        }
-        break;
-    default:
-        break;
-    }
-    return QObject::eventFilter(watched, event);
+    return m_window ? m_window->currentSubWindow() : nullptr;
 }
 
 QMdiSubWindow * RManager::subWindowOf(QWidget * widget) const
@@ -570,33 +464,6 @@ void RManager::redoCanvas() const
     }
     canvas->world()->redo();
     canvas->requestRepaint();
-}
-
-void RManager::watchCurrentView()
-{
-    // An activated sub-window becomes the current view. A null activation
-    // only means nothing has focus, so the current view stays where it is.
-    QObject::connect(
-        mdiArea(),
-        &QMdiArea::subWindowActivated,
-        this,
-        [this](QMdiSubWindow * subwin)
-        {
-            if (subwin)
-            {
-                setCurrentSubWindow(subwin);
-            }
-            else
-            {
-                refreshCurrentView();
-            }
-        });
-    // Keep the current 2D canvas in step with the active draw tool, so the
-    // single Painter toolbox always drives the canvas of the current view.
-    QObject::connect(this, &RManager::currentViewChanged, this, &RManager::applyDrawTool);
-    // A press, a key, or a focus-in lands on the widget inside a sub-window,
-    // not on the sub-window, so watch them application-wide.
-    m_core->installEventFilter(this);
 }
 
 void RManager::setUpMenu()
