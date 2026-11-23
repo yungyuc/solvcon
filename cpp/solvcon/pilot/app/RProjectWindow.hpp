@@ -153,6 +153,12 @@ private:
     void refreshCurrentView();
 
     /**
+     * Show the current-view mark on the current sub-window while that is not
+     * the focused one, and hide it otherwise.
+     */
+    void syncCurrentViewMark();
+
+    /**
      * Owned; deleted with the window. Guarded, like the MDI area and the
      * menu model, so these read null rather than dangle if the widgets go
      * first, which the bindings forbid but cannot prevent.
@@ -186,6 +192,12 @@ private:
      */
     QPointer<QMdiSubWindow> m_reported_subwin;
     bool m_reported_a_view = false;
+
+    /**
+     * The ring that marks the current view while it differs from the focused
+     * sub-window. A child of the sub-window it marks, so it goes with it.
+     */
+    QPointer<QWidget> m_mark;
 
 }; /* end class RProjectWindow */
 

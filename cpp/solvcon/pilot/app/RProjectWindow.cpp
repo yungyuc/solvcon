@@ -15,6 +15,12 @@
 #include <QFocusEvent>
 #include <QIcon>
 #include <QMenuBar>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPalette>
+#include <QPen>
+#include <QRectF>
 #include <QString>
 #include <Qt>
 
@@ -53,6 +59,102 @@ bool is_user_focus(Qt::FocusReason reason)
     default:
         return false;
     }
+}
+
+/**
+ * A ring over the frame of the current sub-window, shown while the current
+ * view is not the focused sub-window.
+ *
+ * It paints in the palette's accent (highlight) color, like the focus ring
+ * of a native control, so it follows the light and dark themes. It lets every
+ * mouse event through to the sub-window under it.
+ */
+class CurrentViewMark
+    : public QWidget
+{
+
+public:
+
+    explicit CurrentViewMark(QMdiSubWindow * subwin);
+
+protected:
+
+    bool eventFilter(QObject * watched, QEvent * event) override;
+    void paintEvent(QPaintEvent * event) override;
+
+private:
+
+    static constexpr qreal RING_WIDTH = 3.0; ///< Stroke width, in logical pixels.
+
+    /**
+     * Radius, in logical pixels, of the outer edge at the top corners where
+     * the style rounds the sub-window title bar (macOS). The frame's bottom
+     * corners are square, and so is every corner in the other styles.
+     */
+    static constexpr qreal MAC_TITLE_RADIUS = 4.0;
+
+    void place();
+
+}; /* end class CurrentViewMark */
+
+CurrentViewMark::CurrentViewMark(QMdiSubWindow * subwin)
+    : QWidget(subwin)
+{
+    setObjectName(QStringLiteral("currentViewMark"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setFocusPolicy(Qt::NoFocus);
+    place();
+    subwin->installEventFilter(this);
+}
+
+bool CurrentViewMark::eventFilter(QObject * watched, QEvent * event)
+{
+    if (QEvent::Resize == event->type())
+    {
+        place();
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void CurrentViewMark::place()
+{
+    setGeometry(parentWidget()->rect());
+    // Stay above the hosted widget, which spans the frame. The size grip
+    // raises itself on the same resize and may sit above the ring in its
+    // corner; it paints no background, so the ring still shows.
+    raise();
+}
+
+void CurrentViewMark::paintEvent(QPaintEvent * /* event */)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QColor ring = palette().color(QPalette::Highlight);
+    // A little translucent, as a native focus ring is.
+    ring.setAlphaF(0.85f);
+    painter.setPen(QPen(ring, RING_WIDTH, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
+    painter.setBrush(Qt::NoBrush);
+    // Follow the frame: rounded at the top where the title bar is, square
+    // at the bottom. The path runs along the middle of the stroke.
+    qreal const half = RING_WIDTH / 2.0;
+    QRectF const box = QRectF(rect()).adjusted(half, half, -half, -half);
+#if defined(Q_OS_MACOS)
+    // The theme manager installs the macOS style in either look, and it
+    // rounds the title bar.
+    qreal const radius = MAC_TITLE_RADIUS - half;
+#else
+    qreal const radius = 0.0;
+#endif
+    QPainterPath frame;
+    frame.moveTo(box.bottomLeft());
+    frame.lineTo(box.left(), box.top() + radius);
+    frame.arcTo(QRectF(box.left(), box.top(), 2 * radius, 2 * radius), 180.0, -90.0);
+    frame.lineTo(box.right() - radius, box.top());
+    frame.arcTo(QRectF(box.right() - 2 * radius, box.top(), 2 * radius, 2 * radius), 90.0, -90.0);
+    frame.lineTo(box.bottomRight());
+    frame.closeSubpath();
+    painter.drawPath(frame);
 }
 
 } /* end namespace */
@@ -162,6 +264,29 @@ void RProjectWindow::refreshCurrentView()
         syncCameraModeMenu();
         emit currentViewChanged();
     }
+    // Focus can move while the current view stays, so check the mark on
+    // every refresh, not only on a change.
+    syncCurrentViewMark();
+}
+
+void RProjectWindow::syncCurrentViewMark()
+{
+    QMdiSubWindow * const current = currentSubWindow();
+    bool const differs = current != nullptr && m_mdi_area && current != m_mdi_area->currentSubWindow();
+    if (!differs)
+    {
+        if (m_mark)
+        {
+            m_mark->hide();
+        }
+        return;
+    }
+    if (!m_mark || m_mark->parentWidget() != current)
+    {
+        delete m_mark;
+        m_mark = new CurrentViewMark(current);
+    }
+    m_mark->show();
 }
 
 bool RProjectWindow::eventFilter(QObject * watched, QEvent * event)

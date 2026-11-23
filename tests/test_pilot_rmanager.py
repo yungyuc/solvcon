@@ -294,6 +294,83 @@ class RManagerSubWindowOfTC(unittest.TestCase):
 
 
 @testing.requires_pilot
+class RManagerCurrentViewMarkTC(unittest.TestCase):
+    """A ring marks the current view while it is not the focused sub-window,
+    and nothing marks it while the two agree, which is the usual case."""
+
+    def setUp(self):
+        self.mgr = pilot.RManager.instance.setUp()
+        self.area = self.mgr.mdiArea
+        self.first = self.mgr.subWindowOf(self.mgr.add2DWidget())
+        self.second = self.mgr.subWindowOf(self.mgr.add2DWidget())
+
+    def tearDown(self):
+        self.area.closeAllSubWindows()
+
+    def _mark(self, subwin):
+        from PySide6 import QtWidgets
+        return subwin.findChild(QtWidgets.QWidget, "currentViewMark")
+
+    def _marked(self):
+        """The sub-windows that show the mark."""
+        from PySide6 import QtWidgets
+        found = []
+        for subwin in (self.first, self.second):
+            mark = subwin.findChild(QtWidgets.QWidget, "currentViewMark")
+            if mark is not None and not mark.isHidden():
+                found.append(subwin)
+        return found
+
+    def test_only_a_view_other_than_the_focus_is_marked(self):
+        self.assertIs(self.second, self.area.activeSubWindow())
+        self.assertEqual([], self._marked())
+        self.mgr.setCurrentView(self.first.widget())
+        self.assertEqual([self.first], self._marked())
+        self.mgr.setCurrentView(self.second.widget())
+        self.assertEqual([], self._marked())
+
+    def test_a_touch_on_the_focus_clears_the_mark(self):
+        from PySide6 import QtGui, QtWidgets
+        self.mgr.setCurrentView(self.first.widget())
+        pos = QtCore.QPointF(5, 5)
+        target = self.second.widget()
+        QtWidgets.QApplication.sendEvent(target, QtGui.QMouseEvent(
+            QtCore.QEvent.Type.MouseButtonPress, pos, target.mapToGlobal(pos),
+            QtCore.Qt.LeftButton, QtCore.Qt.LeftButton,
+            QtCore.Qt.NoModifier))
+        self.assertEqual([], self._marked())
+
+    def test_closing_the_marked_view_clears_the_mark(self):
+        self.mgr.setCurrentView(self.first.widget())
+        self.first.close()
+        self.assertIs(self.second, self.mgr.currentSubWindow())
+        self.assertEqual([], self._marked())
+
+    def test_the_mark_moves_with_the_current_view(self):
+        # A third canvas takes the focus, so neither of the two agrees with
+        # it.
+        self.mgr.add2DWidget()
+        self.mgr.setCurrentView(self.first.widget())
+        self.assertEqual([self.first], self._marked())
+        self.mgr.setCurrentView(self.second.widget())
+        self.assertEqual([self.second], self._marked())
+
+    def test_the_mark_lets_the_mouse_through_in_the_accent_color(self):
+        from PySide6 import QtGui, QtWidgets
+        self.mgr.setCurrentView(self.first.widget())
+        mark = self.first.findChild(QtWidgets.QWidget, "currentViewMark")
+        self.assertEqual(self.first.rect(), mark.geometry())
+        # A press on the ring finds what lies under it.
+        self.assertIsNot(mark, self.first.childAt(1, self.first.height() // 2))
+        image = mark.grab().toImage()
+        scale = image.devicePixelRatio()
+        edge = image.pixelColor(int(1.5 * scale), image.height() // 2)
+        accent = mark.palette().color(QtGui.QPalette.ColorRole.Highlight)
+        for got, want in zip(edge.getRgb()[:3], accent.getRgb()[:3]):
+            self.assertLess(abs(got - want), 48)
+
+
+@testing.requires_pilot
 class RManagerCurrentViewTC(unittest.TestCase):
     """Code sets the current view without activating a sub-window, and the
     user's touch takes it back.
