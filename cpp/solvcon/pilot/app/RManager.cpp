@@ -11,12 +11,9 @@
 
 #include <QAction>
 #include <QActionGroup>
-#include <QColor>
 #include <QEvent>
 #include <QLayout>
 #include <QMdiSubWindow>
-#include <QMenu>
-#include <QMenuBar>
 #include <QSize>
 #include <QSizeGrip>
 #include <QVBoxLayout>
@@ -150,11 +147,14 @@ RManager & RManager::setUp()
         // Paint the style and palette for widgets to follow.
         this->m_themeManager->setWindow(mainWindow());
         this->m_themeManager->apply();
-        m_window->setUp(m_themeManager, m_core);
+        m_window->setUp(m_themeManager, m_shortcutManager, m_core);
         // Keep the current 2D canvas in step with the active draw tool, so the
         // single Painter toolbox always drives the canvas of the current view.
         QObject::connect(this, &RManager::currentViewChanged, this, &RManager::applyDrawTool);
-        this->setUpMenu();
+        // Code for controlling camera is not exposed to Python yet.
+        setUpCameraControllersMenuItems();
+        setUpCameraMovementMenuItems();
+        syncCameraModeMenu();
 
         m_already_setup = true;
     }
@@ -168,9 +168,9 @@ void RManager::reset()
     // need to ensure our raw pointers don't dangle after the call.
     m_torn_down = true;
     // Empty the menu model while the application and its widgets are alive.
-    if (m_menuModel)
+    if (RMenuModel * model = menuModel())
     {
-        m_menuModel->clear();
+        model->clear();
     }
     // Python wraps the relay and connects to it; let both go while the
     // interpreter is still alive.
@@ -204,7 +204,6 @@ void RManager::reset()
     }
     m_owned_core.reset(); // Deletes the application only if the pilot made it.
     m_core = nullptr;
-    m_menuModel = nullptr;
     m_window = nullptr;
 }
 
@@ -247,13 +246,14 @@ void RManager::requireSetUp(char const * caller) const
 
 void RManager::syncCameraModeMenu() const
 {
-    if (m_menuModel == nullptr)
+    RMenuModel * model = menuModel();
+    if (model == nullptr)
     {
         return;
     }
-    QActionGroup * group = m_menuModel->group("camera.mode");
+    QActionGroup * group = model->group("camera.mode");
     RDomainWidget const * viewer = currentR3DWidget();
-    m_menuModel->group("camera.move")->setEnabled(viewer != nullptr);
+    model->group("camera.move")->setEnabled(viewer != nullptr);
     if (viewer == nullptr)
     {
         // An exclusive group keeps one item checked; let it hold none.
@@ -316,7 +316,7 @@ RDomainWidget * RManager::add3DWidget()
     // matches a shortcut, makes the focused viewer current (eventFilter).
     // From the menu, the action resets whatever code or the user last made
     // current.
-    if (QAction * reset = m_menuModel ? m_menuModel->action("camera.reset") : nullptr)
+    if (QAction * reset = menuModel() ? menuModel()->action("camera.reset") : nullptr)
     {
         viewer->addAction(reset);
     }
@@ -333,11 +333,11 @@ R2DWidget * RManager::add2DWidget()
 
     auto * viewer = new R2DWidget(/*parent*/ mdiArea());
     viewer->followTheme(m_themeManager);
-    if (m_menuModel)
+    if (RMenuModel * model = menuModel())
     {
         for (std::string const & tool : draw_tool_names())
         {
-            if (QAction * act = m_menuModel->action("draw.tool." + tool))
+            if (QAction * act = model->action("draw.tool." + tool))
             {
                 viewer->addAction(act);
             }
@@ -384,12 +384,12 @@ std::vector<R2DWidget *> RManager::list2DWidgets() const
 
 RDomainWidget * RManager::currentR3DWidget() const
 {
-    return domainWidgetOf(currentSubWindow());
+    return m_window ? m_window->currentR3DWidget() : nullptr;
 }
 
 R2DWidget * RManager::currentR2DWidget() const
 {
-    return canvasOf(currentSubWindow());
+    return m_window ? m_window->currentR2DWidget() : nullptr;
 }
 
 RDomainWidget * RManager::domainWidgetOf(QMdiSubWindow const * subwin)
@@ -427,9 +427,9 @@ void RManager::setDrawTool(std::string const & name)
     // the console checks the matching radio item and toolbox button. The
     // action group's triggered wiring is unaffected because setChecked emits
     // toggled, not triggered.
-    if (m_menuModel)
+    if (RMenuModel * model = menuModel())
     {
-        if (QAction * action = m_menuModel->action("draw.tool." + name))
+        if (QAction * action = model->action("draw.tool." + name))
         {
             action->setChecked(true);
         }
@@ -444,112 +444,9 @@ void RManager::applyDrawTool()
     }
 }
 
-void RManager::undoCanvas() const
-{
-    R2DWidget * canvas = currentR2DWidget();
-    if (canvas == nullptr || canvas->world() == nullptr)
-    {
-        return;
-    }
-    canvas->world()->undo();
-    canvas->requestRepaint();
-}
-
-void RManager::redoCanvas() const
-{
-    R2DWidget * canvas = currentR2DWidget();
-    if (canvas == nullptr || canvas->world() == nullptr)
-    {
-        return;
-    }
-    canvas->world()->redo();
-    canvas->requestRepaint();
-}
-
-void RManager::setUpMenu()
-{
-    mainWindow()->setMenuBar(new QMenuBar(nullptr));
-    // NOTE: All menus need to be populated or Windows may crash with
-    // "exited with code -1073740791".  The reason is not yet clarified.
-
-    // Parent the model to the main window so the widget tree owns it.
-    m_menuModel = new RMenuModel(mainWindow(), mainWindow());
-
-    // Seed the bar from one weighted table, the single source of truth for
-    // its order. The weight bands leave room to slot a menu between two
-    // others without renumbering. Consumers reach these menus through the
-    // model by path.
-    m_menuModel->menu("File", 0);
-    m_menuModel->menu("Edit", 10);
-    m_menuModel->menu("View", 20);
-    m_menuModel->menu("App", 30);
-    m_menuModel->menu("Mesh", 40);
-    m_menuModel->menu("Canvas", 50);
-    m_menuModel->menu("Profiling", 60);
-    m_menuModel->menu("Track", 65);
-    m_menuModel->menu("Window", 70);
-
-    setUpEditMenuItems();
-    // The View > Theme menu is built in Python; keep only its sync here.
-    connectThemeMenuSync();
-    // Code for controlling camera is not exposed to Python yet.
-    setUpCameraControllersMenuItems();
-    setUpCameraMovementMenuItems();
-    syncCameraModeMenu();
-}
-
-void RManager::setUpEditMenuItems() const
-{
-    // Parent the actions to the model so they die with it instead of leaking.
-    auto * undo_action = new RAction(
-        QString("Undo"),
-        QString("Undo the last change on the focused 2D canvas"),
-        [this]()
-        { undoCanvas(); },
-        m_menuModel);
-    undo_action->setObjectName("edit.undo");
-    m_shortcutManager->applyTo(undo_action, ShortcutCommand::Undo);
-
-    auto * redo_action = new RAction(
-        QString("Redo"),
-        QString("Redo the last undone change on the focused 2D canvas"),
-        [this]()
-        { redoCanvas(); },
-        m_menuModel);
-    redo_action->setObjectName("edit.redo");
-    m_shortcutManager->applyTo(redo_action, ShortcutCommand::Redo);
-
-    m_menuModel->place("Edit", undo_action, 10);
-    m_menuModel->place("Edit", redo_action, 20);
-}
-
-void RManager::connectThemeMenuSync() const
-{
-    // The View > Theme menu is built from Python; the C++ side keeps only this
-    // one connection so the exclusive radios stay in step with the manager
-    // whenever the theme changes from outside the menu, a console set_theme()
-    // or an operating-system switch. The lookup is by object name, so it finds
-    // the Python-created actions once they are placed and does nothing before
-    // then. Parent the connection to the model so it dies with the menu.
-    QObject::connect(
-        m_themeManager,
-        &RThemeManager::themeChanged,
-        m_menuModel,
-        [this](ThemeVariant)
-        {
-            if (QAction * current = m_menuModel->action("theme.mode_" + m_themeManager->modeId()))
-            {
-                current->setChecked(true);
-            }
-            if (QAction * current = m_menuModel->action("theme.look_" + m_themeManager->lookId()))
-            {
-                current->setChecked(true);
-            }
-        });
-}
-
 void RManager::setUpCameraControllersMenuItems() const
 {
+    RMenuModel * model = menuModel();
     // Each viewer keeps its own mode; the menu sets only the current one.
     auto set_mode = [this](std::string const & mode)
     {
@@ -574,27 +471,28 @@ void RManager::setUpCameraControllersMenuItems() const
 
     // The group holds the exclusive mode under a group id so Python can
     // query the checked action.
-    auto * cameraGroup = m_menuModel->group("camera.mode");
+    auto * cameraGroup = model->group("camera.mode");
     int weight = 10;
     for (auto const & item : modes)
     {
         auto * action = new RAction(
             item.text, item.tip, [set_mode, mode = item.mode]()
             { set_mode(mode); },
-            m_menuModel);
+            model);
         action->setObjectName(item.id);
         action->setData(QString::fromStdString(item.mode));
         action->setCheckable(true);
         cameraGroup->addAction(action);
-        m_menuModel->place("View/Camera", action, weight);
+        model->place("View/Camera", action, weight);
         weight += 10;
     }
-    QObject::connect(this, &RManager::currentViewChanged, m_menuModel, [this]()
+    QObject::connect(this, &RManager::currentViewChanged, model, [this]()
                      { syncCameraModeMenu(); });
 }
 
 void RManager::setUpCameraMovementMenuItems() const
 {
+    RMenuModel * model = menuModel();
     static constexpr float pan_step = 40.0f;
     static constexpr float rotate_step = 30.0f;
     static constexpr float zoom_step = 1.0f;
@@ -634,22 +532,22 @@ void RManager::setUpCameraMovementMenuItems() const
     };
 
     // A plain group, so the movement items are enabled and disabled as one.
-    auto * moveGroup = m_menuModel->group("camera.move");
+    auto * moveGroup = model->group("camera.move");
     moveGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::None);
     int weight = 10;
     for (auto const & item : moves)
     {
         auto * action = new RAction(
-            item.text, item.text, createCameraMovementItemHandler(item.act), m_menuModel);
+            item.text, item.text, createCameraMovementItemHandler(item.act), model);
         action->setObjectName(item.id);
         moveGroup->addAction(action);
-        m_menuModel->place("View/Camera move", action, weight);
+        model->place("View/Camera move", action, weight);
         weight += 10;
     }
 
     // Escape resets the camera; add3DWidget attaches this action to each
     // viewer so its WidgetShortcut context can fire.
-    if (QAction * reset = m_menuModel->action("camera.reset"))
+    if (QAction * reset = model->action("camera.reset"))
     {
         m_shortcutManager->applyTo(reset, ShortcutCommand::CameraReset);
     }

@@ -31,6 +31,8 @@
 namespace solvcon
 {
 
+class RMenuModel;
+class RShortcutManager;
 class RThemeManager;
 
 /**
@@ -62,9 +64,10 @@ public:
 
     /**
      * Build the MDI area, follow @p theme for its backdrop, park the RHI
-     * primer, and watch the user's touches through the events of @p app.
+     * primer, build the menu bar with the shortcuts of @p shortcuts, and
+     * watch the user's touches through the events of @p app.
      */
-    void setUp(RThemeManager * theme, QCoreApplication * app);
+    void setUp(RThemeManager * theme, RShortcutManager * shortcuts, QCoreApplication * app);
 
     /// Stop watching the events of @p app, which outlives the window when it is borrowed.
     void detach(QCoreApplication * app);
@@ -73,6 +76,9 @@ public:
 
     /// The MDI area, or nullptr before setUp().
     QMdiArea * mdiArea() { return m_mdi_area; }
+
+    /// The live model of the menu bar, or nullptr before setUp(). The main window owns it.
+    RMenuModel * menuModel() { return m_menu_model; }
 
     /**
      * Add a sub-window to the MDI area, show it, and make it active and
@@ -91,6 +97,12 @@ public:
     /// The sub-window of this window's MDI area that hosts @p widget, or nullptr.
     QMdiSubWindow * subWindowOf(QWidget * widget) const;
 
+    /// The viewer of the current view, or nullptr when that holds no 3D viewer.
+    RDomainWidget * currentR3DWidget() const;
+
+    /// The canvas of the current view, or nullptr when that holds no 2D canvas.
+    R2DWidget * currentR2DWidget() const;
+
     std::vector<RDomainWidget *> list3DWidgets() const;
     std::vector<R2DWidget *> list2DWidgets() const;
 
@@ -107,6 +119,16 @@ protected:
 private:
 
     void setUpCentral(RThemeManager * theme);
+    void setUpMenu(RThemeManager * theme, RShortcutManager * shortcuts);
+    void setUpEditMenuItems(RShortcutManager * shortcuts) const;
+    void connectThemeMenuSync(RThemeManager * theme) const;
+
+    /**
+     * Undo or redo the most recent shape change on the 2D canvas of the
+     * current view, then repaint it. A no-op when that is not a 2D canvas.
+     */
+    void undoCanvas() const;
+    void redoCanvas() const;
 
     /**
      * Park a hidden QRhiWidget in the main window so the top-level adopts
@@ -128,6 +150,9 @@ private:
     QPointer<QMainWindow> m_main_window;
 
     QPointer<QMdiArea> m_mdi_area;
+
+    /// Live menu model owned by the widget tree (parented to the main window).
+    QPointer<RMenuModel> m_menu_model;
 
     /**
      * Hidden QRhiWidget that keeps this main window in render-to-texture

@@ -180,7 +180,7 @@ public:
     void addSubWindowGrip(QMdiSubWindow * subwin);
 
     /// The live model of the menu bar, addressable by path from Python.
-    RMenuModel * menuModel() { return m_menuModel; }
+    RMenuModel * menuModel() const { return m_window ? m_window->menuModel() : nullptr; }
 
     /// The application-wide theme controller, scriptable from Python.
     RThemeManager * themeManager() { return m_themeManager; }
@@ -213,25 +213,14 @@ private:
 
     RManager();
 
-    void setUpMenu();
-
     /**
      * Push the active draw tool onto the 2D canvas of the current view, if
      * any. A no-op when the current view is not a 2D canvas.
      */
     void applyDrawTool();
 
-    void setUpEditMenuItems() const;
-    void connectThemeMenuSync() const;
     void setUpCameraControllersMenuItems() const;
     void setUpCameraMovementMenuItems() const;
-
-    /**
-     * Undo or redo the most recent shape change on the 2D canvas of the
-     * current view, then repaint it. A no-op when that is not a 2D canvas.
-     */
-    void undoCanvas() const;
-    void redoCanvas() const;
 
     std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
 
@@ -259,9 +248,6 @@ private:
 
     /// The project window. The session holds one; reset() lets it go.
     RProjectWindow * m_window = nullptr;
-
-    /// Live menu model owned by the widget tree (parented to the main window).
-    RMenuModel * m_menuModel = nullptr;
 
     /**
      * Application-wide theme controller, parented to the manager so it and its

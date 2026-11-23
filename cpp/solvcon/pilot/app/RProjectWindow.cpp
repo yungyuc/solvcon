@@ -5,13 +5,21 @@
 
 #include <solvcon/pilot/app/RProjectWindow.hpp> // Must be the first include.
 
+#include <string>
+#include <vector>
+
+#include <QAction>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QIcon>
+#include <QMenuBar>
 #include <QString>
 #include <Qt>
 
+#include <solvcon/pilot/app/RAction.hpp>
 #include <solvcon/pilot/app/RManager.hpp>
+#include <solvcon/pilot/app/RMenuModel.hpp>
+#include <solvcon/pilot/app/RShortcutManager.hpp>
 #include <solvcon/pilot/theme/RThemeManager.hpp>
 
 namespace solvcon
@@ -59,10 +67,11 @@ RProjectWindow::~RProjectWindow()
     delete m_main_window;
 }
 
-void RProjectWindow::setUp(RThemeManager * theme, QCoreApplication * app)
+void RProjectWindow::setUp(RThemeManager * theme, RShortcutManager * shortcuts, QCoreApplication * app)
 {
     setUpCentral(theme);
     primeRhiComposition();
+    setUpMenu(theme, shortcuts);
     // A press, a key, or a focus-in lands on the widget inside a sub-window,
     // not on the sub-window, so watch them application-wide.
     app->installEventFilter(this);
@@ -182,6 +191,16 @@ QMdiSubWindow * RProjectWindow::subWindowOf(QWidget * widget) const
     return nullptr;
 }
 
+RDomainWidget * RProjectWindow::currentR3DWidget() const
+{
+    return RManager::domainWidgetOf(currentSubWindow());
+}
+
+R2DWidget * RProjectWindow::currentR2DWidget() const
+{
+    return RManager::canvasOf(currentSubWindow());
+}
+
 std::vector<RDomainWidget *> RProjectWindow::list3DWidgets() const
 {
     std::vector<RDomainWidget *> widgets;
@@ -262,6 +281,106 @@ void RProjectWindow::primeRhiComposition()
     m_rhi_primer = new RDomainWidget(m_mdi_area);
     m_rhi_primer->resize(0, 0);
     m_rhi_primer->hide();
+}
+
+void RProjectWindow::undoCanvas() const
+{
+    R2DWidget * canvas = currentR2DWidget();
+    if (canvas == nullptr || canvas->world() == nullptr)
+    {
+        return;
+    }
+    canvas->world()->undo();
+    canvas->requestRepaint();
+}
+
+void RProjectWindow::redoCanvas() const
+{
+    R2DWidget * canvas = currentR2DWidget();
+    if (canvas == nullptr || canvas->world() == nullptr)
+    {
+        return;
+    }
+    canvas->world()->redo();
+    canvas->requestRepaint();
+}
+
+void RProjectWindow::setUpMenu(RThemeManager * theme, RShortcutManager * shortcuts)
+{
+    m_main_window->setMenuBar(new QMenuBar(nullptr));
+    // NOTE: All menus need to be populated or Windows may crash with
+    // "exited with code -1073740791".  The reason is not yet clarified.
+
+    // Parent the model to the main window so the widget tree owns it.
+    m_menu_model = new RMenuModel(m_main_window, m_main_window);
+
+    // Seed the bar from one weighted table, the single source of truth for
+    // its order. The weight bands leave room to slot a menu between two
+    // others without renumbering. Consumers reach these menus through the
+    // model by path.
+    m_menu_model->menu("File", 0);
+    m_menu_model->menu("Edit", 10);
+    m_menu_model->menu("View", 20);
+    m_menu_model->menu("App", 30);
+    m_menu_model->menu("Mesh", 40);
+    m_menu_model->menu("Canvas", 50);
+    m_menu_model->menu("Profiling", 60);
+    m_menu_model->menu("Track", 65);
+    m_menu_model->menu("Window", 70);
+
+    setUpEditMenuItems(shortcuts);
+    // The View > Theme menu is built in Python; keep only its sync here.
+    connectThemeMenuSync(theme);
+}
+
+void RProjectWindow::setUpEditMenuItems(RShortcutManager * shortcuts) const
+{
+    // Parent the actions to the model so they die with it instead of leaking.
+    auto * undo_action = new RAction(
+        QString("Undo"),
+        QString("Undo the last change on the focused 2D canvas"),
+        [this]()
+        { undoCanvas(); },
+        m_menu_model);
+    undo_action->setObjectName("edit.undo");
+    shortcuts->applyTo(undo_action, ShortcutCommand::Undo);
+
+    auto * redo_action = new RAction(
+        QString("Redo"),
+        QString("Redo the last undone change on the focused 2D canvas"),
+        [this]()
+        { redoCanvas(); },
+        m_menu_model);
+    redo_action->setObjectName("edit.redo");
+    shortcuts->applyTo(redo_action, ShortcutCommand::Redo);
+
+    m_menu_model->place("Edit", undo_action, 10);
+    m_menu_model->place("Edit", redo_action, 20);
+}
+
+void RProjectWindow::connectThemeMenuSync(RThemeManager * theme) const
+{
+    // The View > Theme menu is built from Python; the C++ side keeps only this
+    // one connection so the exclusive radios stay in step with the manager
+    // whenever the theme changes from outside the menu, a console set_theme()
+    // or an operating-system switch. The lookup is by object name, so it finds
+    // the Python-created actions once they are placed and does nothing before
+    // then. Parent the connection to the model so it dies with the menu.
+    QObject::connect(
+        theme,
+        &RThemeManager::themeChanged,
+        m_menu_model,
+        [this, theme](ThemeVariant)
+        {
+            if (QAction * current = m_menu_model->action("theme.mode_" + theme->modeId()))
+            {
+                current->setChecked(true);
+            }
+            if (QAction * current = m_menu_model->action("theme.look_" + theme->lookId()))
+            {
+                current->setChecked(true);
+            }
+        });
 }
 
 } /* end namespace solvcon */
