@@ -160,6 +160,7 @@ public:
     /// Select the active drawing tool and apply it to the canvas of the current view.
     void setDrawTool(std::string const & name);
 
+    /// The main window of the project window, or nullptr before setUp() and after reset().
     QMainWindow * mainWindow() { return m_window ? m_window->mainWindow() : nullptr; }
 
     QMdiArea * mdiArea() const { return m_window ? m_window->mdiArea() : nullptr; }
@@ -192,6 +193,9 @@ public:
 
     /// The relay Python connects to for the manager's signals, or nullptr after reset().
     RManagerNotifier * notifier() { return m_notifier; }
+
+    /// Whether reset() has ended the session for good.
+    bool isTornDown() const { return m_torn_down; }
 
     /// Ask the application to leave its event loop. A no-op after reset().
     void quit();
@@ -233,7 +237,7 @@ private:
     /// Owns the application only when the pilot created it, null otherwise.
     std::unique_ptr<QApplication> m_owned_core = nullptr;
 
-    /// The project window, owned. The session holds one; reset() deletes it.
+    /// The project window, owned. setUp() creates it and reset() deletes it.
     RProjectWindow * m_window = nullptr;
 
     /**

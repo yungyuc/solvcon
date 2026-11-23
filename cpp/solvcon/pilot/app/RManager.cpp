@@ -120,8 +120,6 @@ RManager::RManager()
         m_core = m_owned_core.get();
     }
 
-    m_window = new RProjectWindow;
-    QObject::connect(m_window, &RProjectWindow::currentViewChanged, this, &RManager::currentViewChanged);
     // Parented to the manager to make color-scheme survive a window rebuild.
     m_themeManager = new RThemeManager(this);
     // Shortcut resolver: C++ uses applyTo; Python uses apply_shortcut.
@@ -142,6 +140,8 @@ RManager & RManager::setUp()
     }
     if (!m_already_setup)
     {
+        m_window = new RProjectWindow;
+        QObject::connect(m_window, &RProjectWindow::currentViewChanged, this, &RManager::currentViewChanged);
         // Paint the style and palette for widgets to follow.
         this->m_themeManager->setWindow(mainWindow());
         this->m_themeManager->apply();

@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <optional>
+#include <stdexcept>
+#include <string>
 
 #include <QAction>
 #include <QActionGroup>
@@ -113,6 +115,21 @@ void keep_wrapper_alive(QObject * object, PyObject * wrapper)
             kept->remove(object);
             Py_DECREF(wrapper);
         });
+}
+
+/**
+ * The main window of @p self. Throws std::logic_error naming @p caller
+ * before setUp(), and after reset(), which ends the session.
+ */
+QMainWindow & main_window_of(solvcon::RManager & self, char const * caller)
+{
+    QMainWindow * window = self.mainWindow();
+    if (window == nullptr)
+    {
+        char const * why = self.isTornDown() ? ": the session has ended" : ": call setUp() first";
+        throw std::logic_error(std::string("RManager::") + caller + why);
+    }
+    return *window;
 }
 
 } /* end namespace */
@@ -1182,7 +1199,8 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 [](wrapped_type & self) -> QMainWindow *
                 {
                     return self.mainWindow();
-                })
+                },
+                "The main window, or None before setUp() and after reset().")
             .def_property_readonly(
                 "menu_model",
                 [](wrapped_type & self)
@@ -1323,13 +1341,13 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 "show",
                 [](wrapped_type & self)
                 {
-                    self.mainWindow()->show();
+                    main_window_of(self, "show").show();
                 })
             .def(
                 "resize",
                 [](wrapped_type & self, int w, int h)
                 {
-                    self.mainWindow()->resize(w, h);
+                    main_window_of(self, "resize").resize(w, h);
                 },
                 py::arg("w"),
                 py::arg("h"))
@@ -1353,11 +1371,11 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 "windowTitle",
                 [](wrapped_type & self)
                 {
-                    return self.mainWindow()->windowTitle().toStdString();
+                    return main_window_of(self, "windowTitle").windowTitle().toStdString();
                 },
                 [](wrapped_type & self, std::string const & name)
                 {
-                    self.mainWindow()->setWindowTitle(QString::fromStdString(name));
+                    main_window_of(self, "windowTitle").setWindowTitle(QString::fromStdString(name));
                 })
             //
             ;
@@ -1453,20 +1471,9 @@ void wrap_pilot(pybind11::module & mod)
 
     mod.attr("mgr") = RManagerProxy();
 
-    try
-    {
-        // Creating module level variable to handle Qt MainWindow which is
-        // created by c++ and registered it to Shiboken6 to prevent runtime
-        // error occured.
-        // RuntimeError:
-        // Internal C++ object (PySide6.QtGui.QWindow) already deleted.
-        // py::module::import("PySide6.QtWidgets");
-        py::globals()["_mainWindow"] = RManager::instance().mainWindow();
-    }
-    catch (const pybind11::error_already_set & e)
-    {
-        std::cerr << e.what() << std::endl;
-    }
+    // Create the application at import, as before; the main window waits for
+    // RManager::setUp().
+    RManager::instance();
 
     // Register a Python atexit handler to destroy QApplication while Python
     // is still fully alive.

@@ -31,6 +31,25 @@ _EXIT_HELPER_ENV = 'SOLVCON_QT_WRAPPER_EXIT_HELPER'
 
 _WINDOW_GONE = 'main window destroyed, application alive:'
 _DOCK_HIDDEN = 'dock hidden in area:'
+_SESSION_ENDED = 'after reset: the session has ended'
+
+# Registered before the pilot registers reset() at its import, so it runs
+# after reset() at exit (atexit runs last in, first out).
+_AFTER_RESET = """
+import atexit
+
+
+def _after_reset():
+    from solvcon import pilot
+    try:
+        pilot.RManager.instance.show()
+    except RuntimeError as e:
+        if 'session has ended' in str(e):
+            print(%r, flush=True)
+
+
+atexit.register(_after_reset)
+""" % _SESSION_ENDED
 
 # Keep wrappers of several kinds, let one object die before exit and the
 # rest go with the application. Report whether the main window goes while
@@ -110,8 +129,10 @@ class QtWrapperExitTC(unittest.TestCase):
             self.skipTest('needs a Python interpreter to create the '
                           'application before the pilot loads')
         script = ("from PySide6 import QtWidgets\n"
-                  "app = QtWidgets.QApplication([])\n" + _KEEP_WRAPPERS)
-        self._run([sys.executable, '-c', script], os.environ.copy())
+                  "app = QtWidgets.QApplication([])\n"
+                  + _AFTER_RESET + _KEEP_WRAPPERS)
+        out = self._run([sys.executable, '-c', script], os.environ.copy())
+        self.assertIn(_SESSION_ENDED, out)
 
 
 @testing.requires_pilot

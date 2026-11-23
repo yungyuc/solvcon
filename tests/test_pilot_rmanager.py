@@ -74,6 +74,19 @@ def test_rmanager_before_setup_helper():
     assert [] == mgr.list2DWidgets() == mgr.list3DWidgets()
     # A null Qt object reaches Python as None instead of aborting.
     assert mgr.mdiArea is None
+    # The window comes with setUp(), not with the import.
+    assert mgr.mainWindow is None
+    for name, call in (('show', mgr.show),
+                       ('resize', lambda: mgr.resize(w=100, h=100)),
+                       ('windowTitle', lambda: mgr.windowTitle),
+                       ('windowTitle=',
+                        lambda: setattr(mgr, 'windowTitle', 'x'))):
+        try:
+            call()
+        except RuntimeError as e:
+            assert 'setUp' in str(e), str(e)
+        else:
+            raise AssertionError(f'{name} before setUp did not raise')
 
 
 @testing.requires_pilot
