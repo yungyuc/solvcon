@@ -18,7 +18,7 @@
 #include <solvcon/pilot/visual/RDomainWidget.hpp>
 #include <solvcon/pilot/canvas/R2DWidget.hpp>
 #include <solvcon/pilot/app/RAction.hpp>
-#include <solvcon/pilot/app/RProjectWindow.hpp>
+#include <solvcon/pilot/app/RWindow.hpp>
 
 #include <vector>
 
@@ -160,7 +160,7 @@ public:
     /// Select the active drawing tool and apply it to the canvas of the current view.
     void setDrawTool(std::string const & name);
 
-    /// The main window of the project window, or nullptr before setUp() and after reset().
+    /// The QMainWindow of the window, or nullptr before setUp() and after reset().
     QMainWindow * mainWindow() { return m_window ? m_window->mainWindow() : nullptr; }
 
     QMdiArea * mdiArea() const { return m_window ? m_window->mdiArea() : nullptr; }
@@ -237,8 +237,8 @@ private:
     /// Owns the application only when the pilot created it, null otherwise.
     std::unique_ptr<QApplication> m_owned_core = nullptr;
 
-    /// The project window, owned. setUp() creates it and reset() deletes it.
-    RProjectWindow * m_window = nullptr;
+    /// The window, owned. setUp() creates it and reset() deletes it.
+    RWindow * m_window = nullptr;
 
     /**
      * Application-wide theme controller, parented to the manager so it and its

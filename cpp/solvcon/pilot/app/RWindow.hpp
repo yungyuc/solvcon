@@ -7,7 +7,7 @@
 
 /**
  * @file
- * One project window of the pilot: the main window, its MDI area, and the
+ * One window of the pilot: the main window, its MDI area, and the
  * current view among its sub-windows.
  *
  * @ingroup group_domain
@@ -37,7 +37,7 @@ class RShortcutManager;
 class RThemeManager;
 
 /**
- * One project window: a QMainWindow with an MDI area of 2D canvases, 3D
+ * One pilot window: a QMainWindow with an MDI area of 2D canvases, 3D
  * viewers, and other sub-windows, and the current view among them.
  *
  * The window owns its QMainWindow and deletes it when it is deleted. RManager
@@ -46,7 +46,7 @@ class RThemeManager;
  *
  * @ingroup group_domain
  */
-class RProjectWindow
+class RWindow
     : public QObject
 {
     Q_OBJECT
@@ -54,14 +54,14 @@ class RProjectWindow
 public:
 
     /// Create the main window, without its contents; setUp() builds them.
-    RProjectWindow();
+    RWindow();
 
-    ~RProjectWindow() override;
+    ~RWindow() override;
 
-    RProjectWindow(RProjectWindow const &) = delete;
-    RProjectWindow(RProjectWindow &&) = delete;
-    RProjectWindow & operator=(RProjectWindow const &) = delete;
-    RProjectWindow & operator=(RProjectWindow &&) = delete;
+    RWindow(RWindow const &) = delete;
+    RWindow(RWindow &&) = delete;
+    RWindow & operator=(RWindow const &) = delete;
+    RWindow & operator=(RWindow &&) = delete;
 
     /**
      * Build the MDI area, follow @p theme for its backdrop, park the RHI
@@ -199,10 +199,10 @@ private:
      */
     QPointer<QWidget> m_mark;
 
-}; /* end class RProjectWindow */
+}; /* end class RWindow */
 
 template <typename... Args>
-QMdiSubWindow * RProjectWindow::addSubWindow(Args &&... args)
+QMdiSubWindow * RWindow::addSubWindow(Args &&... args)
 {
     QMdiSubWindow * subwin = m_mdi_area->addSubWindow(std::forward<Args>(args)...);
     if (subwin == nullptr)

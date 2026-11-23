@@ -3,7 +3,7 @@
  * BSD 3-Clause License, see COPYING
  */
 
-#include <solvcon/pilot/app/RProjectWindow.hpp> // Must be the first include.
+#include <solvcon/pilot/app/RWindow.hpp> // Must be the first include.
 
 #include <functional>
 #include <string>
@@ -159,14 +159,14 @@ void CurrentViewMark::paintEvent(QPaintEvent * /* event */)
 
 } /* end namespace */
 
-RProjectWindow::RProjectWindow()
+RWindow::RWindow()
     : QObject()
     , m_main_window(new QMainWindow)
 {
     m_main_window->setWindowIcon(QIcon(QString(":/icon.ico")));
 }
 
-RProjectWindow::~RProjectWindow()
+RWindow::~RWindow()
 {
     // Widgets must not outlive their application. When it is gone already
     // (a borrowed one shut down first), leak the tree, as the manager did
@@ -197,7 +197,7 @@ RProjectWindow::~RProjectWindow()
     }
 }
 
-void RProjectWindow::setUp(RThemeManager * theme, RShortcutManager * shortcuts, QCoreApplication * app)
+void RWindow::setUp(RThemeManager * theme, RShortcutManager * shortcuts, QCoreApplication * app)
 {
     setUpCentral(theme);
     primeRhiComposition();
@@ -208,7 +208,7 @@ void RProjectWindow::setUp(RThemeManager * theme, RShortcutManager * shortcuts, 
     app->installEventFilter(this);
 }
 
-void RProjectWindow::setCurrentView(QWidget * widget)
+void RWindow::setCurrentView(QWidget * widget)
 {
     QMdiSubWindow * subwin = subWindowOf(widget);
     if (subwin == nullptr)
@@ -218,7 +218,7 @@ void RProjectWindow::setCurrentView(QWidget * widget)
     setCurrentSubWindow(subwin);
 }
 
-QMdiSubWindow * RProjectWindow::currentSubWindow() const
+QMdiSubWindow * RWindow::currentSubWindow() const
 {
     if (m_mdi_area == nullptr)
     {
@@ -231,7 +231,7 @@ QMdiSubWindow * RProjectWindow::currentSubWindow() const
     return m_mdi_area->currentSubWindow();
 }
 
-void RProjectWindow::setCurrentSubWindow(QMdiSubWindow * subwin)
+void RWindow::setCurrentSubWindow(QMdiSubWindow * subwin)
 {
     if (subwin != m_current_subwin)
     {
@@ -246,14 +246,14 @@ void RProjectWindow::setCurrentSubWindow(QMdiSubWindow * subwin)
                 subwin,
                 &QObject::destroyed,
                 this,
-                &RProjectWindow::refreshCurrentView,
+                &RWindow::refreshCurrentView,
                 static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
         }
     }
     refreshCurrentView();
 }
 
-void RProjectWindow::refreshCurrentView()
+void RWindow::refreshCurrentView()
 {
     QMdiSubWindow * const current = currentSubWindow();
     if (current != m_reported_subwin || (current == nullptr && m_reported_a_view))
@@ -269,7 +269,7 @@ void RProjectWindow::refreshCurrentView()
     syncCurrentViewMark();
 }
 
-void RProjectWindow::syncCurrentViewMark()
+void RWindow::syncCurrentViewMark()
 {
     QMdiSubWindow * const current = currentSubWindow();
     bool const differs = current != nullptr && m_mdi_area && current != m_mdi_area->currentSubWindow();
@@ -289,7 +289,7 @@ void RProjectWindow::syncCurrentViewMark()
     m_mark->show();
 }
 
-bool RProjectWindow::eventFilter(QObject * watched, QEvent * event)
+bool RWindow::eventFilter(QObject * watched, QEvent * event)
 {
     switch (event->type())
     {
@@ -326,7 +326,7 @@ bool RProjectWindow::eventFilter(QObject * watched, QEvent * event)
     return QObject::eventFilter(watched, event);
 }
 
-QMdiSubWindow * RProjectWindow::subWindowOf(QWidget * widget) const
+QMdiSubWindow * RWindow::subWindowOf(QWidget * widget) const
 {
     if (m_mdi_area == nullptr)
     {
@@ -342,17 +342,17 @@ QMdiSubWindow * RProjectWindow::subWindowOf(QWidget * widget) const
     return nullptr;
 }
 
-RDomainWidget * RProjectWindow::currentR3DWidget() const
+RDomainWidget * RWindow::currentR3DWidget() const
 {
     return RManager::domainWidgetOf(currentSubWindow());
 }
 
-R2DWidget * RProjectWindow::currentR2DWidget() const
+R2DWidget * RWindow::currentR2DWidget() const
 {
     return RManager::canvasOf(currentSubWindow());
 }
 
-std::vector<RDomainWidget *> RProjectWindow::list3DWidgets() const
+std::vector<RDomainWidget *> RWindow::list3DWidgets() const
 {
     std::vector<RDomainWidget *> widgets;
     if (m_mdi_area)
@@ -368,7 +368,7 @@ std::vector<RDomainWidget *> RProjectWindow::list3DWidgets() const
     return widgets;
 }
 
-std::vector<R2DWidget *> RProjectWindow::list2DWidgets() const
+std::vector<R2DWidget *> RWindow::list2DWidgets() const
 {
     std::vector<R2DWidget *> widgets;
     if (m_mdi_area)
@@ -384,7 +384,7 @@ std::vector<R2DWidget *> RProjectWindow::list2DWidgets() const
     return widgets;
 }
 
-void RProjectWindow::setUpCentral(RThemeManager * theme)
+void RWindow::setUpCentral(RThemeManager * theme)
 {
     m_mdi_area = new QMdiArea(m_main_window);
     m_mdi_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -419,7 +419,7 @@ void RProjectWindow::setUpCentral(RThemeManager * theme)
     QObject::connect(theme, &RThemeManager::themeChanged, m_mdi_area, paintBackdrop);
 }
 
-void RProjectWindow::primeRhiComposition()
+void RWindow::primeRhiComposition()
 {
     // A QRhiWidget renders to a texture. The first one to appear in the main
     // window forces Qt to recreate the top-level native window so its backing
@@ -434,7 +434,7 @@ void RProjectWindow::primeRhiComposition()
     m_rhi_primer->hide();
 }
 
-void RProjectWindow::syncCameraModeMenu() const
+void RWindow::syncCameraModeMenu() const
 {
     if (m_menu_model == nullptr)
     {
@@ -466,7 +466,7 @@ void RProjectWindow::syncCameraModeMenu() const
     }
 }
 
-void RProjectWindow::undoCanvas() const
+void RWindow::undoCanvas() const
 {
     R2DWidget * canvas = currentR2DWidget();
     if (canvas == nullptr || canvas->world() == nullptr)
@@ -477,7 +477,7 @@ void RProjectWindow::undoCanvas() const
     canvas->requestRepaint();
 }
 
-void RProjectWindow::redoCanvas() const
+void RWindow::redoCanvas() const
 {
     R2DWidget * canvas = currentR2DWidget();
     if (canvas == nullptr || canvas->world() == nullptr)
@@ -488,7 +488,7 @@ void RProjectWindow::redoCanvas() const
     canvas->requestRepaint();
 }
 
-void RProjectWindow::setUpMenu(RThemeManager * theme, RShortcutManager * shortcuts)
+void RWindow::setUpMenu(RThemeManager * theme, RShortcutManager * shortcuts)
 {
     m_main_window->setMenuBar(new QMenuBar(nullptr));
     // NOTE: All menus need to be populated or Windows may crash with
@@ -520,7 +520,7 @@ void RProjectWindow::setUpMenu(RThemeManager * theme, RShortcutManager * shortcu
     syncCameraModeMenu();
 }
 
-void RProjectWindow::setUpEditMenuItems(RShortcutManager * shortcuts) const
+void RWindow::setUpEditMenuItems(RShortcutManager * shortcuts) const
 {
     // Parent the actions to the model so they die with it instead of leaking.
     auto * undo_action = new RAction(
@@ -545,7 +545,7 @@ void RProjectWindow::setUpEditMenuItems(RShortcutManager * shortcuts) const
     m_menu_model->place("Edit", redo_action, 20);
 }
 
-void RProjectWindow::connectThemeMenuSync(RThemeManager * theme) const
+void RWindow::connectThemeMenuSync(RThemeManager * theme) const
 {
     // The View > Theme menu is built from Python; the C++ side keeps only this
     // one connection so the exclusive radios stay in step with the manager
@@ -570,7 +570,7 @@ void RProjectWindow::connectThemeMenuSync(RThemeManager * theme) const
         });
 }
 
-void RProjectWindow::setUpCameraControllersMenuItems() const
+void RWindow::setUpCameraControllersMenuItems() const
 {
     // Each viewer keeps its own mode; the menu sets only the current one.
     auto set_mode = [this](std::string const & mode)
@@ -613,7 +613,7 @@ void RProjectWindow::setUpCameraControllersMenuItems() const
     }
 }
 
-void RProjectWindow::setUpCameraMovementMenuItems(RShortcutManager * shortcuts) const
+void RWindow::setUpCameraMovementMenuItems(RShortcutManager * shortcuts) const
 {
     static constexpr float pan_step = 40.0f;
     static constexpr float rotate_step = 30.0f;
@@ -675,7 +675,7 @@ void RProjectWindow::setUpCameraMovementMenuItems(RShortcutManager * shortcuts) 
     }
 }
 
-std::function<void()> RProjectWindow::createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> & func) const
+std::function<void()> RWindow::createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> & func) const
 {
     return [this, func]()
     {

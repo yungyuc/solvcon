@@ -140,8 +140,8 @@ RManager & RManager::setUp()
     }
     if (!m_already_setup)
     {
-        m_window = new RProjectWindow;
-        QObject::connect(m_window, &RProjectWindow::currentViewChanged, this, &RManager::currentViewChanged);
+        m_window = new RWindow;
+        QObject::connect(m_window, &RWindow::currentViewChanged, this, &RManager::currentViewChanged);
         // Paint the style and palette for widgets to follow.
         this->m_themeManager->setWindow(mainWindow());
         this->m_themeManager->apply();
@@ -256,7 +256,7 @@ RDomainWidget * RManager::add3DWidget()
     layout->addWidget(viewer);
     // View > Camera shows the mode of the current viewer, which changes on
     // its own when a 2D mesh switches it to pan/zoom.
-    QObject::connect(viewer, &RDomainWidget::cameraModeChanged, m_window, &RProjectWindow::syncCameraModeMenu);
+    QObject::connect(viewer, &RDomainWidget::cameraModeChanged, m_window, &RWindow::syncCameraModeMenu);
 
     // The sub-window shows the title of the host, so the host follows the
     // title set on the viewer. An empty title gives the default title.
