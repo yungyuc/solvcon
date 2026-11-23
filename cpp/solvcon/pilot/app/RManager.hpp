@@ -219,21 +219,8 @@ private:
      */
     void applyDrawTool();
 
-    void setUpCameraControllersMenuItems() const;
-    void setUpCameraMovementMenuItems() const;
-
-    std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
-
     /// Throw std::logic_error naming @p caller unless setUp() has built the MDI area.
     void requireSetUp(char const * caller) const;
-
-    /**
-     * Make View > Camera show the mode of the current 3D viewer. With no
-     * current viewer the mode items are unchecked and disabled, and the
-     * View > Camera move items are disabled, because there is no viewer to
-     * show, set, or move.
-     */
-    void syncCameraModeMenu() const;
 
     bool m_already_setup = false;
 

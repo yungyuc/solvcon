@@ -18,6 +18,7 @@
 #include <solvcon/pilot/visual/RDomainWidget.hpp>
 #include <solvcon/pilot/canvas/R2DWidget.hpp>
 
+#include <functional>
 #include <vector>
 
 #include <QCoreApplication>
@@ -106,6 +107,14 @@ public:
     std::vector<RDomainWidget *> list3DWidgets() const;
     std::vector<R2DWidget *> list2DWidgets() const;
 
+    /**
+     * Make View > Camera show the mode of the current 3D viewer. With no
+     * current viewer the mode items are unchecked and disabled, and the
+     * View > Camera move items are disabled, because there is no viewer to
+     * show, set, or move.
+     */
+    void syncCameraModeMenu() const;
+
 signals:
 
     /// See RManager::currentViewChanged().
@@ -122,6 +131,8 @@ private:
     void setUpMenu(RThemeManager * theme, RShortcutManager * shortcuts);
     void setUpEditMenuItems(RShortcutManager * shortcuts) const;
     void connectThemeMenuSync(RThemeManager * theme) const;
+    void setUpCameraControllersMenuItems() const;
+    void setUpCameraMovementMenuItems(RShortcutManager * shortcuts) const;
 
     /**
      * Undo or redo the most recent shape change on the 2D canvas of the
@@ -129,6 +140,8 @@ private:
      */
     void undoCanvas() const;
     void redoCanvas() const;
+
+    std::function<void()> createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> &) const;
 
     /**
      * Park a hidden QRhiWidget in the main window so the top-level adopts

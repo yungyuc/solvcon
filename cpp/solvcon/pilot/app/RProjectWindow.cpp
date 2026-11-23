@@ -5,10 +5,12 @@
 
 #include <solvcon/pilot/app/RProjectWindow.hpp> // Must be the first include.
 
+#include <functional>
 #include <string>
 #include <vector>
 
 #include <QAction>
+#include <QActionGroup>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QIcon>
@@ -134,6 +136,8 @@ void RProjectWindow::refreshCurrentView()
     {
         m_reported_subwin = current;
         m_reported_a_view = current != nullptr;
+        // The menus show the new view before anyone hears of it.
+        syncCameraModeMenu();
         emit currentViewChanged();
     }
 }
@@ -283,6 +287,38 @@ void RProjectWindow::primeRhiComposition()
     m_rhi_primer->hide();
 }
 
+void RProjectWindow::syncCameraModeMenu() const
+{
+    if (m_menu_model == nullptr)
+    {
+        return;
+    }
+    QActionGroup * group = m_menu_model->group("camera.mode");
+    RDomainWidget const * viewer = currentR3DWidget();
+    m_menu_model->group("camera.move")->setEnabled(viewer != nullptr);
+    if (viewer == nullptr)
+    {
+        // An exclusive group keeps one item checked; let it hold none.
+        group->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+        if (QAction * checked = group->checkedAction())
+        {
+            checked->setChecked(false);
+        }
+        group->setEnabled(false);
+        return;
+    }
+    group->setEnabled(true);
+    group->setExclusionPolicy(QActionGroup::ExclusionPolicy::Exclusive);
+    QString const mode = QString::fromStdString(viewer->cameraMode());
+    for (QAction * action : group->actions())
+    {
+        if (action->data().toString() == mode)
+        {
+            action->setChecked(true);
+        }
+    }
+}
+
 void RProjectWindow::undoCanvas() const
 {
     R2DWidget * canvas = currentR2DWidget();
@@ -331,6 +367,10 @@ void RProjectWindow::setUpMenu(RThemeManager * theme, RShortcutManager * shortcu
     setUpEditMenuItems(shortcuts);
     // The View > Theme menu is built in Python; keep only its sync here.
     connectThemeMenuSync(theme);
+    // Code for controlling camera is not exposed to Python yet.
+    setUpCameraControllersMenuItems();
+    setUpCameraMovementMenuItems(shortcuts);
+    syncCameraModeMenu();
 }
 
 void RProjectWindow::setUpEditMenuItems(RShortcutManager * shortcuts) const
@@ -381,6 +421,122 @@ void RProjectWindow::connectThemeMenuSync(RThemeManager * theme) const
                 current->setChecked(true);
             }
         });
+}
+
+void RProjectWindow::setUpCameraControllersMenuItems() const
+{
+    // Each viewer keeps its own mode; the menu sets only the current one.
+    auto set_mode = [this](std::string const & mode)
+    {
+        if (RDomainWidget * viewer = currentR3DWidget())
+        {
+            viewer->setCameraMode(mode);
+        }
+    };
+
+    struct CameraMode
+    {
+        char const * id;
+        QString text;
+        QString tip;
+        std::string mode;
+    }; /* end struct CameraMode */
+    std::vector<CameraMode> const modes = {
+        {"camera.mode_orbit", QString("Orbit camera (3D)"), QString("Orbit the domain around its center"), "orbit"},
+        {"camera.mode_fps", QString("First-person camera (3D)"), QString("Fly through the domain in first person"), "fps"},
+        {"camera.mode_pan", QString("Pan / zoom camera (2D)"), QString("Pan and zoom the domain in the plane"), "pan"},
+    };
+
+    // The group holds the exclusive mode under a group id so Python can
+    // query the checked action.
+    auto * cameraGroup = m_menu_model->group("camera.mode");
+    int weight = 10;
+    for (auto const & item : modes)
+    {
+        auto * action = new RAction(
+            item.text, item.tip, [set_mode, mode = item.mode]()
+            { set_mode(mode); },
+            m_menu_model);
+        action->setObjectName(item.id);
+        action->setData(QString::fromStdString(item.mode));
+        action->setCheckable(true);
+        cameraGroup->addAction(action);
+        m_menu_model->place("View/Camera", action, weight);
+        weight += 10;
+    }
+}
+
+void RProjectWindow::setUpCameraMovementMenuItems(RShortcutManager * shortcuts) const
+{
+    static constexpr float pan_step = 40.0f;
+    static constexpr float rotate_step = 30.0f;
+    static constexpr float zoom_step = 1.0f;
+
+    struct CameraMove
+    {
+        char const * id;
+        QString text;
+        std::function<void(RDomainWidget *)> act;
+    }; /* end struct CameraMove */
+    // The keyboard hints the labels used to carry were wrong: those keys are
+    // handled in RDomainWidget::keyPressEvent with different behavior, so they
+    // are dropped here rather than advertised.
+    std::vector<CameraMove> const moves = {
+        {"camera.reset", QString("Reset camera"), [](RDomainWidget * v)
+         { v->fitCameraToScene(); }},
+        {"camera.move_up", QString("Move camera up"), [](RDomainWidget * v)
+         { v->panCamera(0.0f, pan_step); }},
+        {"camera.move_down", QString("Move camera down"), [](RDomainWidget * v)
+         { v->panCamera(0.0f, -pan_step); }},
+        {"camera.move_right", QString("Move camera right"), [](RDomainWidget * v)
+         { v->panCamera(-pan_step, 0.0f); }},
+        {"camera.move_left", QString("Move camera left"), [](RDomainWidget * v)
+         { v->panCamera(pan_step, 0.0f); }},
+        {"camera.move_forward", QString("Move camera forward"), [](RDomainWidget * v)
+         { v->zoomCamera(zoom_step); }},
+        {"camera.move_backward", QString("Move camera backward"), [](RDomainWidget * v)
+         { v->zoomCamera(-zoom_step); }},
+        {"camera.yaw_positive", QString("Rotate camera positive yaw"), [](RDomainWidget * v)
+         { v->rotateCamera(rotate_step, 0.0f); }},
+        {"camera.yaw_negative", QString("Rotate camera negative yaw"), [](RDomainWidget * v)
+         { v->rotateCamera(-rotate_step, 0.0f); }},
+        {"camera.pitch_positive", QString("Rotate camera positive pitch"), [](RDomainWidget * v)
+         { v->rotateCamera(0.0f, rotate_step); }},
+        {"camera.pitch_negative", QString("Rotate camera negative pitch"), [](RDomainWidget * v)
+         { v->rotateCamera(0.0f, -rotate_step); }},
+    };
+
+    // A plain group, so the movement items are enabled and disabled as one.
+    auto * moveGroup = m_menu_model->group("camera.move");
+    moveGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::None);
+    int weight = 10;
+    for (auto const & item : moves)
+    {
+        auto * action = new RAction(
+            item.text, item.text, createCameraMovementItemHandler(item.act), m_menu_model);
+        action->setObjectName(item.id);
+        moveGroup->addAction(action);
+        m_menu_model->place("View/Camera move", action, weight);
+        weight += 10;
+    }
+
+    // Escape resets the camera; add3DWidget attaches this action to each
+    // viewer so its WidgetShortcut context can fire.
+    if (QAction * reset = m_menu_model->action("camera.reset"))
+    {
+        shortcuts->applyTo(reset, ShortcutCommand::CameraReset);
+    }
+}
+
+std::function<void()> RProjectWindow::createCameraMovementItemHandler(const std::function<void(RDomainWidget *)> & func) const
+{
+    return [this, func]()
+    {
+        if (RDomainWidget * viewer = currentR3DWidget())
+        {
+            func(viewer);
+        }
+    };
 }
 
 } /* end namespace solvcon */

@@ -193,6 +193,22 @@ class RManagerCameraModeTC(unittest.TestCase):
         self.mgr.setCurrentView(first)
         self.assertEqual("camera.mode_fps", self._checked())
 
+    def test_a_listener_of_the_change_sees_the_new_radio(self):
+        viewer = self.mgr.add3DWidget()
+        viewer.cameraMode = "fps"
+        self.mgr.add2DWidget()
+        seen = []
+
+        def slot():
+            seen.append(self._checked())
+
+        self.mgr.notifier.currentViewChanged.connect(slot)
+        try:
+            self.mgr.setCurrentView(viewer)
+        finally:
+            self.mgr.notifier.currentViewChanged.disconnect(slot)
+        self.assertEqual(["camera.mode_fps"], seen)
+
     def test_a_mode_set_from_code_moves_the_radio(self):
         viewer = self.mgr.add3DWidget()
         viewer.cameraMode = "pan"
