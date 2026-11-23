@@ -312,6 +312,22 @@ R2DWidget * RManager::currentR2DWidget() const
     return m_mdiArea ? canvasOf(m_mdiArea->currentSubWindow()) : nullptr;
 }
 
+QMdiSubWindow * RManager::subWindowOf(QWidget * widget) const
+{
+    if (m_mdiArea == nullptr)
+    {
+        return nullptr;
+    }
+    for (QWidget * cursor = widget; cursor != nullptr; cursor = cursor->parentWidget())
+    {
+        if (auto * subwin = qobject_cast<QMdiSubWindow *>(cursor))
+        {
+            return subwin->mdiArea() == m_mdiArea ? subwin : nullptr;
+        }
+    }
+    return nullptr;
+}
+
 RDomainWidget * RManager::domainWidgetOf(QMdiSubWindow const * subwin)
 {
     QWidget * host = subwin ? subwin->widget() : nullptr;

@@ -1037,6 +1037,35 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
             ;
     }
 
+    /**
+     * Define @p name for every widget Python can hold. The 3D viewer and the 2D
+     * canvas reach Python as pybind11 objects and any other widget as a PySide
+     * one, and no single overload accepts both kinds.
+     */
+    template <typename Func>
+    wrapper_type & def_for_widget(char const * name, Func const & func, char const * doc)
+    {
+        namespace py = pybind11;
+
+        (*this)
+            .def(
+                name,
+                [func](wrapped_type & self, RDomainWidget * widget)
+                {
+                    return func(self, widget);
+                },
+                py::arg("widget"))
+            .def(
+                name,
+                [func](wrapped_type & self, R2DWidget * widget)
+                {
+                    return func(self, widget);
+                },
+                py::arg("widget"))
+            .def(name, func, py::arg("widget"), doc);
+        return *this;
+    }
+
     wrapper_type & wrap_widget()
     {
         namespace py = pybind11;
@@ -1078,6 +1107,29 @@ class SOLVCON_PYTHON_WRAPPER_VISIBILITY WrapRManager
                 {
                     return self.list2DWidgets();
                 })
+            .def_for_widget(
+                "subWindowOf",
+                [](wrapped_type & self, QWidget * widget)
+                {
+                    return self.subWindowOf(widget);
+                },
+                "The sub-window that hosts the widget, or None when the "
+                "widget is not in the manager's MDI area. It does not depend "
+                "on which sub-window is active.")
+            .def(
+                "domainWidgetOf",
+                [](wrapped_type &, QMdiSubWindow * subwin)
+                {
+                    return RManager::domainWidgetOf(subwin);
+                },
+                py::arg("subwin"))
+            .def(
+                "canvasOf",
+                [](wrapped_type &, QMdiSubWindow * subwin)
+                {
+                    return RManager::canvasOf(subwin);
+                },
+                py::arg("subwin"))
             .def("setDrawTool", &wrapped_type::setDrawTool, py::arg("name"))
             .def_property_readonly("drawTool", &wrapped_type::drawTool)
             .def_property_readonly(

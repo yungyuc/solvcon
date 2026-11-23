@@ -77,7 +77,7 @@ class DomainViewer(object):
         self._viewer.showAxis(True)
         # Delete the sub-window on close and watch for that close, so a
         # close from any source reaches `closed` before Qt frees the widget.
-        self._subwin = self._mgr.mdiArea.activeSubWindow()
+        self._subwin = self._mgr.subWindowOf(self._viewer)
         if self._subwin is not None:
             self._subwin.setAttribute(Qt.WA_DeleteOnClose, True)
             self._close_filter = base.SubWindowCloseFilter(

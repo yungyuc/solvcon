@@ -357,9 +357,9 @@ class Canvas(base.PilotFeature):
         self._draw_layer(self._world, layer)
         self._update_widget()
 
-    def _track_widget(self, clear):
-        """Watch the active sub-window and call ``clear`` before Qt frees
-        the widget it wraps.
+    def _track_widget(self, widget, clear):
+        """Watch the sub-window hosting ``widget`` and call ``clear``
+        before Qt frees the widget.
 
         Closing a canvas sub-window deletes the underlying C++ widget
         (``QMdiArea.addSubWindow`` sets ``WA_DeleteOnClose`` by default), so
@@ -372,7 +372,7 @@ class Canvas(base.PilotFeature):
         brand-new sub-window via ``add2DWidget()``, so a given sub-window
         reaches ``installEventFilter`` at most once here.
         """
-        subwin = self._mgr.mdiArea.activeSubWindow()
+        subwin = self._mgr.subWindowOf(widget)
         if subwin is None:
             return None
         subwin.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
@@ -394,7 +394,7 @@ class Canvas(base.PilotFeature):
         if self._widget is None:
             self._widget = self._mgr.add2DWidget()
             self._widget_close_filter = self._track_widget(
-                self._clear_widget)
+                self._widget, self._clear_widget)
         self._widget.updateWorld(self._world)
         self._widget.resetView()
         # Keep a separately-opened 2D view in sync with the same world.
@@ -411,7 +411,7 @@ class Canvas(base.PilotFeature):
         if self._widget_2d is None:
             self._widget_2d = self._mgr.add2DWidget()
             self._widget_2d_close_filter = self._track_widget(
-                self._clear_widget_2d)
+                self._widget_2d, self._clear_widget_2d)
         self._widget_2d.updateWorld(self._world)
         self._widget_2d.resetView()
 

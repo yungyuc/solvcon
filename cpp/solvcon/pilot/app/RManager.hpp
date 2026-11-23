@@ -90,6 +90,20 @@ public:
     std::vector<RDomainWidget *> list3DWidgets() const;
     std::vector<R2DWidget *> list2DWidgets() const;
 
+    /**
+     * The sub-window of this manager's MDI area that hosts @p widget, directly
+     * or through a container such as the 3D viewer host. Returns nullptr for a
+     * null widget or one hosted anywhere else. It does not depend on which
+     * sub-window is active.
+     */
+    QMdiSubWindow * subWindowOf(QWidget * widget) const;
+
+    /// The 3D viewer hosted by @p subwin, or nullptr when it holds something else.
+    static RDomainWidget * domainWidgetOf(QMdiSubWindow const * subwin);
+
+    /// The 2D canvas hosted by @p subwin, or nullptr when it holds something else.
+    static R2DWidget * canvasOf(QMdiSubWindow const * subwin);
+
     /// Name of the active canvas drawing tool.
     std::string drawTool() const { return m_draw_tool; }
 
@@ -167,9 +181,6 @@ private:
 
     /// Throw std::logic_error naming @p caller unless setUp() has built the MDI area.
     void requireSetUp(char const * caller) const;
-
-    static RDomainWidget * domainWidgetOf(QMdiSubWindow const * subwin);
-    static R2DWidget * canvasOf(QMdiSubWindow const * subwin);
 
     bool m_already_setup = false;
 

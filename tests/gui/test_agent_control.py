@@ -98,6 +98,26 @@ class PilotWindowManagerTC(_PilotTC):
             self.assertTrue(os.path.exists(path))
             self.assertGreater(os.path.getsize(path), 0)
 
+    def test_save_image_leaves_the_active_window_alone(self):
+        # Reading the canvas of a window must not activate it: that would
+        # move the focus under the user and fire every activation handler.
+        first = self.ex.run({"op": "new_canvas"}).value["window_id"]
+        self.ex.run({"op": "new_canvas"})
+        active = self.area.activeSubWindow()
+        activated = []
+        self.area.subWindowActivated.connect(activated.append)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "first.png")
+                res = self.ex.run(
+                    {"op": "save_image", "window_id": first, "path": path})
+                self.assertTrue(res.ok, res.error)
+                self.assertTrue(os.path.exists(path))
+        finally:
+            self.area.subWindowActivated.disconnect(activated.append)
+        self.assertEqual([], activated)
+        self.assertIs(active, self.area.activeSubWindow())
+
     def test_by_id_commands_fail_cleanly_on_a_missing_window(self):
         self.ex.run({"op": "new_canvas"})
         for op in ("activate_window", "close_window"):

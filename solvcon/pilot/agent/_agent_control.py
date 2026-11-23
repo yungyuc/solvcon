@@ -38,9 +38,8 @@ class PilotWindowManager:
     ``list_windows``, ``activate_window``, ``close_window``, and
     ``save_image``.  Each open sub-window carries a stable integer id keyed on
     the MDI sub-window, whose identity Qt keeps stable across calls; ids for
-    windows that have closed are dropped.  ``save_image`` briefly activates the
-    target window so it can be grabbed through the current canvas, then
-    restores the previously active one.
+    windows that have closed are dropped.  ``save_image`` grabs the canvas of
+    the target window without activating it.
     """
 
     def __init__(self, mgr):
@@ -75,8 +74,7 @@ class PilotWindowManager:
         widget = self._mgr.add2DWidget()
         widget.updateWorld(core.WorldFp64())
         widget.resetView()
-        # add2DWidget activates the window it opens, so it is the active one.
-        return self._id_of(self._area().activeSubWindow())
+        return self._id_of(self._mgr.subWindowOf(widget))
 
     def list_windows(self):
         active = self._area().activeSubWindow()
@@ -98,20 +96,12 @@ class PilotWindowManager:
         self._subwindow_of(window_id).close()
 
     def save_image(self, window_id, path):
-        subwin = self._subwindow_of(window_id)
-        area = self._area()
-        previous = area.activeSubWindow()
-        area.setActiveSubWindow(subwin)
-        try:
-            widget = self._mgr.currentR2DWidget()
-            # Only a 2D canvas can be grabbed; report anything else as a
-            # failed write rather than a bogus success.
-            if widget is None:
-                return False
-            return widget.saveImage(path)
-        finally:
-            if previous is not None and previous is not subwin:
-                area.setActiveSubWindow(previous)
+        widget = self._mgr.canvasOf(self._subwindow_of(window_id))
+        # Only a 2D canvas can be grabbed; report anything else as a failed
+        # write rather than a bogus success.
+        if widget is None:
+            return False
+        return widget.saveImage(path)
 
 
 class _ActiveCanvasExecutor:

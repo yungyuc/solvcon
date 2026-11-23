@@ -143,4 +143,55 @@ class RManagerFocusedWidgetTC(unittest.TestCase):
         self.assertNotEqual(focused_pose, tuple(focused.cameraPosition))
 
 
+@testing.requires_pilot
+class RManagerSubWindowOfTC(unittest.TestCase):
+    """A caller reaches the sub-window of a widget it holds, and the widget
+    of a sub-window it holds, without activating anything."""
+
+    def setUp(self):
+        self.mgr = pilot.RManager.instance.setUp()
+        self.area = self.mgr.mdiArea
+
+    def tearDown(self):
+        self.area.closeAllSubWindows()
+
+    def test_the_first_of_two_canvases_is_reached_without_activating_it(self):
+        first = self.mgr.add2DWidget()
+        second = self.mgr.add2DWidget()
+        active = self.area.activeSubWindow()
+        self.assertIs(second, self.mgr.canvasOf(active))
+        subwin = self.mgr.subWindowOf(first)
+        self.assertIsNotNone(subwin)
+        self.assertIsNot(active, subwin)
+        self.assertIs(first, self.mgr.canvasOf(subwin))
+        self.assertIsNone(self.mgr.domainWidgetOf(subwin))
+        self.assertIs(active, self.area.activeSubWindow())
+
+    def test_a_viewer_is_reached_through_its_host(self):
+        viewer = self.mgr.add3DWidget()
+        self.mgr.add2DWidget()
+        subwin = self.mgr.subWindowOf(viewer)
+        self.assertIsNotNone(subwin)
+        self.assertIsNot(self.area.activeSubWindow(), subwin)
+        self.assertIs(viewer, self.mgr.domainWidgetOf(subwin))
+        self.assertIsNone(self.mgr.canvasOf(subwin))
+
+    def test_a_python_widget_is_reached_too(self):
+        from PySide6 import QtWidgets
+        widget = QtWidgets.QWidget()
+        subwin = self.mgr.addSubWindow(widget)
+        self.assertIs(subwin, self.mgr.subWindowOf(widget))
+        self.assertIs(subwin, self.mgr.subWindowOf(
+            QtWidgets.QLabel("inside", widget)))
+
+    def test_a_foreign_widget_has_no_subwindow(self):
+        from PySide6 import QtWidgets
+        self.assertIsNone(self.mgr.subWindowOf(QtWidgets.QWidget()))
+        # A sub-window of another MDI area is not the manager's either.
+        other = QtWidgets.QMdiArea()
+        widget = QtWidgets.QWidget()
+        other.addSubWindow(widget)
+        self.assertIsNone(self.mgr.subWindowOf(widget))
+
+
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4 tw=79:
