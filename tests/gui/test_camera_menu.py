@@ -34,12 +34,17 @@ class CameraMenuTC(unittest.TestCase):
         self.assertEqual(reset.shortcut().toString(), "Esc")
 
     def test_camera_mode_group_is_exclusive_and_defaults_to_orbit(self):
-        group = self.model.group("camera.mode")
-        self.assertEqual(len(group.actions()), 3)
-        self.assertTrue(group.isExclusive())
-        checked = group.checkedAction()
-        self.assertIsNotNone(checked)
-        self.assertEqual(checked.objectName(), "camera.mode_orbit")
+        # The radio shows the current viewer, which starts in orbit.
+        viewer = self.mgr.add3DWidget()
+        try:
+            group = self.model.group("camera.mode")
+            self.assertEqual(len(group.actions()), 3)
+            self.assertTrue(group.isExclusive())
+            checked = group.checkedAction()
+            self.assertIsNotNone(checked)
+            self.assertEqual(checked.objectName(), "camera.mode_orbit")
+        finally:
+            self.mgr.subWindowOf(viewer).close()
 
     def test_reset_attaches_to_each_new_viewer(self):
         reset = self.model.action("camera.reset")

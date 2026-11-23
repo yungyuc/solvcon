@@ -348,6 +348,11 @@ public:
     /// widget size is restored afterward.
     QImage renderToImage(int width, int height, bool transparent = false);
 
+signals:
+
+    /// Emitted when the camera mode changes, by setCameraMode() or by loading a 2D mesh.
+    void cameraModeChanged();
+
 protected:
 
     void initialize(QRhiCommandBuffer * cb) override;

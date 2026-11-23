@@ -19,6 +19,22 @@ except ImportError:
 _HELPER_ENV = 'SOLVCON_RMANAGER_BEFORE_SETUP_HELPER'
 
 
+def _make_2d_mesh():
+    """Two triangles and one quadrilateral in the z = 0 plane."""
+    core = solvcon.core
+    T = core.StaticMesh.TRIANGLE
+    Q = core.StaticMesh.QUADRILATERAL
+    mh = core.StaticMesh(ndim=2, nnode=6, nface=0, ncell=3)
+    mh.ndcrd.ndarray[:, :] = [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (2, 1)]
+    mh.cltpn.ndarray[:] = [T, T, Q]
+    mh.clnds.ndarray[:, :5] = [(3, 0, 3, 2, -1), (3, 0, 1, 3, -1),
+                               (4, 1, 4, 5, 3)]
+    mh.build_interior()
+    mh.build_boundary()
+    mh.build_ghost()
+    return mh
+
+
 def _make_3d_mesh():
     """A single tetrahedron."""
     core = solvcon.core
@@ -141,6 +157,73 @@ class RManagerFocusedWidgetTC(unittest.TestCase):
         self.model.action("camera.move_up").trigger()
         self.assertEqual(others_pose, tuple(other.cameraPosition))
         self.assertNotEqual(focused_pose, tuple(focused.cameraPosition))
+
+
+@testing.requires_pilot
+class RManagerCameraModeTC(unittest.TestCase):
+    """Each viewer keeps its own camera mode, and View > Camera shows and
+    sets the mode of the current one."""
+
+    def setUp(self):
+        self.mgr = pilot.RManager.instance.setUp()
+        self.model = self.mgr.menu_model
+        self.group = self.model.group("camera.mode")
+
+    def tearDown(self):
+        self.mgr.mdiArea.closeAllSubWindows()
+
+    def _checked(self):
+        action = self.group.checkedAction()
+        return None if action is None else action.objectName()
+
+    def test_the_radio_sets_only_the_current_viewer(self):
+        first = self.mgr.add3DWidget()
+        second = self.mgr.add3DWidget()
+        self.model.action("camera.mode_fps").trigger()
+        self.assertEqual(("orbit", "fps"),
+                         (first.cameraMode, second.cameraMode))
+
+    def test_the_radio_shows_the_current_viewer(self):
+        first = self.mgr.add3DWidget()
+        self.model.action("camera.mode_fps").trigger()
+        second = self.mgr.add3DWidget()
+        # A new viewer starts in its own default and the radio follows it.
+        self.assertEqual("orbit", second.cameraMode)
+        self.assertEqual("camera.mode_orbit", self._checked())
+        self.mgr.setCurrentView(first)
+        self.assertEqual("camera.mode_fps", self._checked())
+
+    def test_a_mode_set_from_code_moves_the_radio(self):
+        viewer = self.mgr.add3DWidget()
+        viewer.cameraMode = "pan"
+        self.assertEqual("camera.mode_pan", self._checked())
+
+    def test_a_2d_mesh_moves_the_radio_to_pan(self):
+        viewer = self.mgr.add3DWidget()
+        self.assertEqual("camera.mode_orbit", self._checked())
+        viewer.updateMesh(_make_2d_mesh())
+        self.assertEqual("camera.mode_pan", self._checked())
+
+    def test_without_a_current_viewer_the_radio_is_empty_and_disabled(self):
+        viewer = self.mgr.add3DWidget()
+        self.mgr.add2DWidget()
+        self.assertIsNone(self._checked())
+        self.assertFalse(self.group.isEnabled())
+        self.mgr.setCurrentView(viewer)
+        self.assertTrue(self.group.isEnabled())
+        self.assertEqual("camera.mode_orbit", self._checked())
+
+    def test_without_a_current_viewer_the_moves_are_disabled(self):
+        moves = self.model.menu("View/Camera move").actions()
+        # Every move item is in the group that is enabled as one.
+        self.assertEqual(set(moves),
+                         set(self.model.group("camera.move").actions()))
+        viewer = self.mgr.add3DWidget()
+        self.assertTrue(all(a.isEnabled() for a in moves))
+        self.mgr.add2DWidget()
+        self.assertFalse(any(a.isEnabled() for a in moves))
+        self.mgr.setCurrentView(viewer)
+        self.assertTrue(all(a.isEnabled() for a in moves))
 
 
 @testing.requires_pilot

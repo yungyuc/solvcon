@@ -35,12 +35,12 @@ _KEEP_WRAPPERS = """
 from solvcon import pilot
 from PySide6 import QtCore
 mgr = pilot.RManager.instance.setUp()
+canvas = mgr.add2DWidget()
 mgr.add3DWidget()
-mgr.add2DWidget()
 mgr.menu_model.group("camera.mode").checkedAction().objectName()
 mgr.mainWindow.windowTitle()
 mgr.mdiArea.subWindowList()
-mgr.mdiArea.activeSubWindow().close()
+mgr.subWindowOf(canvas).close()
 QtCore.QCoreApplication.sendPostedEvents(
     None, QtCore.QEvent.Type.DeferredDelete)
 """
@@ -102,10 +102,13 @@ class QtWrapperLifetimeTC(unittest.TestCase):
         self.mgr = pilot.RManager.instance.setUp()
 
     def test_an_object_reached_through_a_temporary_stays_valid(self):
+        # A current viewer leaves one camera mode checked.
+        viewer = self.mgr.add3DWidget()
         action = self.mgr.menu_model.group("camera.mode").checkedAction()
         gc.collect()
         self.assertTrue(shiboken6.isValid(action))
         self.assertTrue(action.objectName().startswith("camera.mode_"))
+        self.mgr.subWindowOf(viewer).close()
 
     def test_the_wrapper_outlives_the_temporary_it_came_through(self):
         self.mgr.add2DWidget()

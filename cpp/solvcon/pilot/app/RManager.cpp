@@ -268,6 +268,38 @@ void RManager::requireSetUp(char const * caller) const
     }
 }
 
+void RManager::syncCameraModeMenu() const
+{
+    if (m_menuModel == nullptr)
+    {
+        return;
+    }
+    QActionGroup * group = m_menuModel->group("camera.mode");
+    RDomainWidget const * viewer = currentR3DWidget();
+    m_menuModel->group("camera.move")->setEnabled(viewer != nullptr);
+    if (viewer == nullptr)
+    {
+        // An exclusive group keeps one item checked; let it hold none.
+        group->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+        if (QAction * checked = group->checkedAction())
+        {
+            checked->setChecked(false);
+        }
+        group->setEnabled(false);
+        return;
+    }
+    group->setEnabled(true);
+    group->setExclusionPolicy(QActionGroup::ExclusionPolicy::Exclusive);
+    QString const mode = QString::fromStdString(viewer->cameraMode());
+    for (QAction * action : group->actions())
+    {
+        if (action->data().toString() == mode)
+        {
+            action->setChecked(true);
+        }
+    }
+}
+
 RDomainWidget * RManager::add3DWidget()
 {
     requireSetUp("add3DWidget");
@@ -283,6 +315,9 @@ RDomainWidget * RManager::add3DWidget()
     layout->setContentsMargins(0, 0, 0, 0);
     auto * viewer = new RDomainWidget(/*parent*/ host);
     layout->addWidget(viewer);
+    // View > Camera shows the mode of the current viewer, which changes on
+    // its own when a 2D mesh switches it to pan/zoom.
+    QObject::connect(viewer, &RDomainWidget::cameraModeChanged, this, &RManager::syncCameraModeMenu);
 
     // The sub-window shows the title of the host, so the host follows the
     // title set on the viewer. An empty title gives the default title.
@@ -651,6 +686,7 @@ void RManager::setUpMenu()
     // Code for controlling camera is not exposed to Python yet.
     setUpCameraControllersMenuItems();
     setUpCameraMovementMenuItems();
+    syncCameraModeMenu();
 }
 
 void RManager::setUpEditMenuItems() const
@@ -705,9 +741,10 @@ void RManager::connectThemeMenuSync() const
 
 void RManager::setUpCameraControllersMenuItems() const
 {
+    // Each viewer keeps its own mode; the menu sets only the current one.
     auto set_mode = [this](std::string const & mode)
     {
-        for (RDomainWidget * viewer : list3DWidgets())
+        if (RDomainWidget * viewer = currentR3DWidget())
         {
             viewer->setCameraMode(mode);
         }
@@ -726,8 +763,8 @@ void RManager::setUpCameraControllersMenuItems() const
         {"camera.mode_pan", QString("Pan / zoom camera (2D)"), QString("Pan and zoom the domain in the plane"), "pan"},
     };
 
-    // The group owns the exclusive mode, held by the model under a group id
-    // so Python can query the checked action.
+    // The group holds the exclusive mode under a group id so Python can
+    // query the checked action.
     auto * cameraGroup = m_menuModel->group("camera.mode");
     int weight = 10;
     for (auto const & item : modes)
@@ -737,15 +774,14 @@ void RManager::setUpCameraControllersMenuItems() const
             { set_mode(mode); },
             m_menuModel);
         action->setObjectName(item.id);
+        action->setData(QString::fromStdString(item.mode));
         action->setCheckable(true);
         cameraGroup->addAction(action);
         m_menuModel->place("View/Camera", action, weight);
         weight += 10;
     }
-    if (QAction * orbit = m_menuModel->action("camera.mode_orbit"))
-    {
-        orbit->setChecked(true);
-    }
+    QObject::connect(this, &RManager::currentViewChanged, m_menuModel, [this]()
+                     { syncCameraModeMenu(); });
 }
 
 void RManager::setUpCameraMovementMenuItems() const
@@ -788,12 +824,16 @@ void RManager::setUpCameraMovementMenuItems() const
          { v->rotateCamera(0.0f, -rotate_step); }},
     };
 
+    // A plain group, so the movement items are enabled and disabled as one.
+    auto * moveGroup = m_menuModel->group("camera.move");
+    moveGroup->setExclusionPolicy(QActionGroup::ExclusionPolicy::None);
     int weight = 10;
     for (auto const & item : moves)
     {
         auto * action = new RAction(
             item.text, item.text, createCameraMovementItemHandler(item.act), m_menuModel);
         action->setObjectName(item.id);
+        moveGroup->addAction(action);
         m_menuModel->place("View/Camera move", action, weight);
         weight += 10;
     }

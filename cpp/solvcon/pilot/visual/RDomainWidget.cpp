@@ -272,9 +272,10 @@ void RDomainWidget::updateMesh(std::shared_ptr<StaticMesh> const & mesh)
     m_scene.setDimension(mh.ndim());
     // For now, limit 2D domain to the in-plane pan/zoom whose wheel scales the
     // orthographic box.
-    if (2 == mh.ndim())
+    if (2 == mh.ndim() && RCameraController::Mode::PanZoom != m_scene.camera().mode())
     {
         m_scene.camera().setMode(RCameraController::Mode::PanZoom);
+        emit cameraModeChanged();
     }
     QVector3D lo(
         std::numeric_limits<float>::max(),
@@ -1779,8 +1780,14 @@ void RDomainWidget::orbitStep(float yaw_deg, float pitch_deg)
 
 void RDomainWidget::setCameraMode(std::string const & name)
 {
-    m_scene.camera().setMode(RCameraController::modeFromName(name));
+    RCameraController::Mode const mode = RCameraController::modeFromName(name);
+    bool const changed = mode != m_scene.camera().mode();
+    m_scene.camera().setMode(mode);
     update();
+    if (changed)
+    {
+        emit cameraModeChanged();
+    }
 }
 
 std::string RDomainWidget::cameraMode() const
