@@ -47,6 +47,7 @@ set(SOLVCON_PILOT_PYMODHEADERS
     # app/
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RManager.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RMenuModel.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/RProjectWindow.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/keymap.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RShortcutManager.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RAction.hpp
@@ -99,6 +100,7 @@ set(SOLVCON_PILOT_PYMODSOURCES
     # app/
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RMenuModel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/RProjectWindow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/keymap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RShortcutManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/RAction.cpp

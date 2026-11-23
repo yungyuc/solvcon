@@ -151,8 +151,7 @@ RManager::RManager()
         m_core = m_owned_core.get();
     }
 
-    m_mainWindow = new QMainWindow;
-    m_mainWindow->setWindowIcon(QIcon(QString(":/icon.ico")));
+    m_window = new RProjectWindow;
     // Parented to the manager to make color-scheme survive a window rebuild.
     m_themeManager = new RThemeManager(this);
     // Shortcut resolver: C++ uses applyTo; Python uses apply_shortcut.
@@ -174,10 +173,10 @@ RManager & RManager::setUp()
     if (!m_already_setup)
     {
         // Paint the style and palette for widgets to follow.
-        this->m_themeManager->setWindow(m_mainWindow);
+        this->m_themeManager->setWindow(mainWindow());
         this->m_themeManager->apply();
-        this->setUpCentral();
-        this->primeRhiComposition();
+        m_window->setUp(m_themeManager);
+        this->watchCurrentView();
         this->setUpMenu();
 
         m_already_setup = true;
@@ -228,10 +227,8 @@ void RManager::reset()
     }
     m_owned_core.reset(); // Deletes the application only if the pilot made it.
     m_core = nullptr;
-    m_mainWindow = nullptr;
     m_menuModel = nullptr;
-    m_mdiArea = nullptr;
-    m_rhi_primer = nullptr;
+    m_window = nullptr;
     m_current_subwin = nullptr;
     m_reported_subwin = nullptr;
     m_reported_a_view = false;
@@ -268,7 +265,7 @@ void RManager::addSubWindowGrip(QMdiSubWindow * subwin)
 
 void RManager::requireSetUp(char const * caller) const
 {
-    if (m_mdiArea == nullptr)
+    if (mdiArea() == nullptr)
     {
         throw std::logic_error(std::string("RManager::") + caller + ": call setUp() first");
     }
@@ -360,7 +357,7 @@ R2DWidget * RManager::add2DWidget()
 {
     requireSetUp("add2DWidget");
 
-    auto * viewer = new R2DWidget(/*parent*/ m_mdiArea);
+    auto * viewer = new R2DWidget(/*parent*/ mdiArea());
     viewer->followTheme(m_themeManager);
     if (m_menuModel)
     {
@@ -394,15 +391,16 @@ void RManager::setCurrentView(QWidget * widget)
 
 QMdiSubWindow * RManager::currentSubWindow() const
 {
-    if (m_mdiArea == nullptr)
+    QMdiArea * const area = mdiArea();
+    if (area == nullptr)
     {
         return nullptr;
     }
-    if (m_current_subwin && !m_current_subwin->isHidden() && m_current_subwin->mdiArea() == m_mdiArea)
+    if (m_current_subwin && !m_current_subwin->isHidden() && m_current_subwin->mdiArea() == area)
     {
         return m_current_subwin;
     }
-    return m_mdiArea->currentSubWindow();
+    return area->currentSubWindow();
 }
 
 void RManager::setCurrentSubWindow(QMdiSubWindow * subwin)
@@ -475,6 +473,21 @@ bool RManager::eventFilter(QObject * watched, QEvent * event)
     return QObject::eventFilter(watched, event);
 }
 
+QMdiSubWindow * RManager::subWindowOf(QWidget * widget) const
+{
+    return m_window ? m_window->subWindowOf(widget) : nullptr;
+}
+
+std::vector<RDomainWidget *> RManager::list3DWidgets() const
+{
+    return m_window ? m_window->list3DWidgets() : std::vector<RDomainWidget *>{};
+}
+
+std::vector<R2DWidget *> RManager::list2DWidgets() const
+{
+    return m_window ? m_window->list2DWidgets() : std::vector<R2DWidget *>{};
+}
+
 RDomainWidget * RManager::currentR3DWidget() const
 {
     return domainWidgetOf(currentSubWindow());
@@ -483,22 +496,6 @@ RDomainWidget * RManager::currentR3DWidget() const
 R2DWidget * RManager::currentR2DWidget() const
 {
     return canvasOf(currentSubWindow());
-}
-
-QMdiSubWindow * RManager::subWindowOf(QWidget * widget) const
-{
-    if (m_mdiArea == nullptr)
-    {
-        return nullptr;
-    }
-    for (QWidget * cursor = widget; cursor != nullptr; cursor = cursor->parentWidget())
-    {
-        if (auto * subwin = qobject_cast<QMdiSubWindow *>(cursor))
-        {
-            return subwin->mdiArea() == m_mdiArea ? subwin : nullptr;
-        }
-    }
-    return nullptr;
 }
 
 RDomainWidget * RManager::domainWidgetOf(QMdiSubWindow const * subwin)
@@ -520,38 +517,6 @@ RDomainWidget * RManager::domainWidgetOf(QMdiSubWindow const * subwin)
 R2DWidget * RManager::canvasOf(QMdiSubWindow const * subwin)
 {
     return subwin ? qobject_cast<R2DWidget *>(subwin->widget()) : nullptr;
-}
-
-std::vector<RDomainWidget *> RManager::list3DWidgets() const
-{
-    std::vector<RDomainWidget *> widgets;
-    if (m_mdiArea)
-    {
-        for (QMdiSubWindow const * subwin : m_mdiArea->subWindowList())
-        {
-            if (auto * viewer = domainWidgetOf(subwin))
-            {
-                widgets.push_back(viewer);
-            }
-        }
-    }
-    return widgets;
-}
-
-std::vector<R2DWidget *> RManager::list2DWidgets() const
-{
-    std::vector<R2DWidget *> widgets;
-    if (m_mdiArea)
-    {
-        for (QMdiSubWindow const * subwin : m_mdiArea->subWindowList())
-        {
-            if (auto * canvas = canvasOf(subwin))
-            {
-                widgets.push_back(canvas);
-            }
-        }
-    }
-    return widgets;
 }
 
 void RManager::setDrawTool(std::string const & name)
@@ -607,16 +572,12 @@ void RManager::redoCanvas() const
     canvas->requestRepaint();
 }
 
-void RManager::setUpCentral()
+void RManager::watchCurrentView()
 {
-    m_mdiArea = new QMdiArea(m_mainWindow);
-    m_mdiArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    m_mdiArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    m_mainWindow->setCentralWidget(m_mdiArea);
     // An activated sub-window becomes the current view. A null activation
     // only means nothing has focus, so the current view stays where it is.
     QObject::connect(
-        m_mdiArea,
+        mdiArea(),
         &QMdiArea::subWindowActivated,
         this,
         [this](QMdiSubWindow * subwin)
@@ -636,41 +597,16 @@ void RManager::setUpCentral()
     // A press, a key, or a focus-in lands on the widget inside a sub-window,
     // not on the sub-window, so watch them application-wide.
     m_core->installEventFilter(this);
-
-    // The MDI area paints its own backdrop instead of reading the palette, so
-    // drive it from the theme's effective window color and follow theme
-    // changes; otherwise a stale slab shows through under the dark theme.
-    auto paintBackdrop = [this](ThemeVariant)
-    {
-        m_mdiArea->setBackground(m_themeManager->windowColor());
-    };
-    paintBackdrop(m_themeManager->currentVariant());
-    QObject::connect(m_themeManager, &RThemeManager::themeChanged, m_mdiArea, paintBackdrop);
-}
-
-void RManager::primeRhiComposition()
-{
-    // A QRhiWidget renders to a texture. The first one to appear in the main
-    // window forces Qt to recreate the top-level native window so its backing
-    // store can flush through QRhi; on macOS that tears down and rebuilds every
-    // existing sub-window and dock, so the GUI looks like it restarts and any
-    // already-open viewer vanishes. Trigger that switch once, before any user
-    // content exists, by parking a hidden RDomainWidget in the window. The
-    // recreation then happens with nothing to lose, and later viewers reuse the
-    // same native window. The widget tree owns the primer.
-    m_rhi_primer = new RDomainWidget(m_mdiArea);
-    m_rhi_primer->resize(0, 0);
-    m_rhi_primer->hide();
 }
 
 void RManager::setUpMenu()
 {
-    m_mainWindow->setMenuBar(new QMenuBar(nullptr));
+    mainWindow()->setMenuBar(new QMenuBar(nullptr));
     // NOTE: All menus need to be populated or Windows may crash with
     // "exited with code -1073740791".  The reason is not yet clarified.
 
     // Parent the model to the main window so the widget tree owns it.
-    m_menuModel = new RMenuModel(m_mainWindow, m_mainWindow);
+    m_menuModel = new RMenuModel(mainWindow(), mainWindow());
 
     // Seed the bar from one weighted table, the single source of truth for
     // its order. The weight bands leave room to slot a menu between two

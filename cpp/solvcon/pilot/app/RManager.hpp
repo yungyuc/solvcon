@@ -18,6 +18,7 @@
 #include <solvcon/pilot/visual/RDomainWidget.hpp>
 #include <solvcon/pilot/canvas/R2DWidget.hpp>
 #include <solvcon/pilot/app/RAction.hpp>
+#include <solvcon/pilot/app/RProjectWindow.hpp>
 
 #include <vector>
 
@@ -159,9 +160,9 @@ public:
     /// Select the active drawing tool and apply it to the canvas of the current view.
     void setDrawTool(std::string const & name);
 
-    QMainWindow * mainWindow() { return m_mainWindow; }
+    QMainWindow * mainWindow() { return m_window ? m_window->mainWindow() : nullptr; }
 
-    QMdiArea * mdiArea() { return m_mdiArea; }
+    QMdiArea * mdiArea() const { return m_window ? m_window->mdiArea() : nullptr; }
 
     /**
      * Add a sub-window to the MDI area, show it, and make it active. Throws
@@ -217,14 +218,10 @@ private:
 
     RManager();
 
-    void setUpCentral();
-    void setUpMenu();
+    /// Follow activations, the user's touches, and the draw tool for the current view.
+    void watchCurrentView();
 
-    /**
-     * Park a hidden QRhiWidget in the main window so the top-level adopts
-     * render-to-texture composition once, up front, before any user content.
-     */
-    void primeRhiComposition();
+    void setUpMenu();
 
     /**
      * Push the active draw tool onto the 2D canvas of the current view, if
@@ -274,7 +271,8 @@ private:
     /// Owns the application only when the pilot created it, null otherwise.
     std::unique_ptr<QApplication> m_owned_core = nullptr;
 
-    QMainWindow * m_mainWindow = nullptr;
+    /// The project window. The session holds one; reset() lets it go.
+    RProjectWindow * m_window = nullptr;
 
     /// Live menu model owned by the widget tree (parented to the main window).
     RMenuModel * m_menuModel = nullptr;
@@ -294,14 +292,6 @@ private:
     RThreadManager * m_thread_manager = nullptr;
 
     RManagerNotifier * m_notifier = nullptr;
-
-    QMdiArea * m_mdiArea = nullptr;
-
-    /**
-     * Hidden QRhiWidget that keeps the main window in render-to-texture
-     * composition mode for the whole session. Owned by the widget tree.
-     */
-    RDomainWidget * m_rhi_primer = nullptr;
 
     /**
      * The sub-window last made current by setCurrentView(), by activation, or
@@ -328,13 +318,13 @@ template <typename... Args>
 QMdiSubWindow * RManager::addSubWindow(Args &&... args)
 {
     requireSetUp("addSubWindow");
-    QMdiSubWindow * subwin = m_mdiArea->addSubWindow(std::forward<Args>(args)...);
+    QMdiSubWindow * subwin = mdiArea()->addSubWindow(std::forward<Args>(args)...);
     if (subwin == nullptr)
     {
         throw std::invalid_argument("RManager::addSubWindow: the MDI area did not accept the widget");
     }
     subwin->show();
-    m_mdiArea->setActiveSubWindow(subwin);
+    mdiArea()->setActiveSubWindow(subwin);
     // Activation does not reach a window that is never active, as in tests
     // run off screen, so make the new sub-window current explicitly.
     setCurrentSubWindow(subwin);
